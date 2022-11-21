@@ -1,0 +1,42 @@
+{
+	"rust-analyzer.cachePriming.enable": true,
+	"rust-analyzer.debug.engine": "vadimcn.vscode-lldb",
+	"rust-analyzer.inlayHints.bindingModeHints.enable": true,
+	"rust-analyzer.inlayHints.chainingHints.enable": true,
+	"rust-analyzer.inlayHints.closingBraceHints.enable": true,
+	"rust-analyzer.inlayHints.closureReturnTypeHints.enable": "with_block",
+	"rust-analyzer.inlayHints.lifetimeElisionHints.enable": "skip_trivial",
+	"rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames": true,
+	"rust-analyzer.inlayHints.reborrowHints.enable": "mutable",
+	"rust-analyzer.inlayHints.parameterHints.enable": true,
+	"rust-analyzer.inlayHints.typeHints.hideNamedConstructor": true,
+	"rust-analyzer.workspace.symbol.search.kind": "all_symbols",
+
+	"editor.insertSpaces": false,
+	"editor.tabSize": 4,
+	"files.encoding": "utf8",
+	"files.eol": "\n",
+	"files.insertFinalNewline": true,
+	"files.associations": {
+		"ns": "shellscript"
+	},
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer",
+		"editor.formatOnSave": true
+	},
+	"[rust][c][cpp][javascript][typescript][javascriptreact][typescriptreact]": {
+		"files.trimTrailingWhitespace": true
+	},
+	"[yaml]": {
+		"editor.insertSpaces": true,
+		"editor.tabSize": 2,
+		"editor.autoIndent": "advanced"
+	},
+	"[markdown][mdx]": {
+		"editor.insertSpaces": true,
+		"editor.tabSize": 4
+	},
+	"javascript.preferences.quoteStyle": "single",
+	"typescript.preferences.quoteStyle": "single",
+	"python.analysis.typeCheckingMode": "basic"
+}

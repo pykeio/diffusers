@@ -1,0 +1,13 @@
+accelerate
+ftfy
+diffusers
+huggingface-hub>=0.10.0
+numpy
+onnx
+onnxruntime
+scipy
+spacy
+termcolor
+torch>=1.12
+transformers>=4.21.0
+yaspin
