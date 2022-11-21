@@ -257,7 +257,7 @@ def convert_unet(num_tokens: int, text_hidden_size: int):
 	collect_garbage()
 
 	if needs_collate:
-		unet = onnx.load(str(unet_out_path.absolute().as_posix()))
+		unet = onnx.load(str((unet_out_path / 'unet.onnx').absolute().as_posix()))
 		onnx.save_model(
 			unet,
 			str((out_path / 'unet.onnx').absolute().as_posix()),
