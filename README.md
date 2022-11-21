@@ -45,3 +45,21 @@ imgs[0].clone().into_rgb8().save("result.png")?;
 ```
 
 See the docs for more detailed information & examples.
+
+### Converting models
+To convert a model from a HuggingFace `diffusers` model:
+1. Create and activate a virtual environment.
+2. Install script requirements: `python3 -m pip install -r requirements.txt`
+3. If you are converting a model directly from HuggingFace, log in to HuggingFace Hub with `huggingface-cli login` - this can be skipped if you have the model on disk
+5. Convert your model with `scripts/hf2pyke.py`:
+    - To convert a float32 model from HF (recommended for CPU): `python3 scripts/hf2pyke.py runwayml/stable-diffusion-v1-5 ~/pyke-diffusers-sd15/`
+    - To convert a float32 model from disk: `python3 scripts/hf2pyke.py ~/stable-diffusion-v1-5/ ~/pyke-diffusers-sd15/`
+    - To convert a float16 model from HF (recommended for GPU): `python3 scritps/hf2pyke.py runwayml/stable-diffusion-v1-5@fp16 ~/pyke-diffusers-sd15-fp16/`
+    - To convert a float16 model from disk: `python3 scripts/hf2pyke.py ~/stable-diffusion-v1-5-fp16/ ~/pyke-diffusers/sd15-fp16/ -f16`
+
+Float16 models are faster on GPUs, but are **not hardware-independent** (due to an ONNX Runtime issue). Float16 models must be converted on the hardware they will be run on. Float32 models are hardware-independent, but are recommended only for x86 CPU inference or older NVIDIA GPUs.
+
+### ONNX Runtime binaries
+On Windows (or other platforms), you may want to copy the ONNX Runtime dylibs to the target folder by enabling the `onnx-copy-dylibs` Cargo feature.
+
+When running the examples in this repo on Windows, you'll need to also *manually copy the dylibs from `target/debug/` to `target/debug/examples/`* on first run. You'll also need to copy the dylibs to `target/debug/deps/` if your project uses pyke Diffusers in a Cargo test.

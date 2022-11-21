@@ -47,6 +47,7 @@ default = [ "common-schedulers", "onnx", "stable-diffusion", "hub", "hub-reqwest
 
 onnx = [ "ml2", "ml2/onnx" ]
 onnx-cuda = [ "ml2/onnxep-cuda" ]
+onnx-copy-dylibs = [ "ml2/onnx-copy-dylibs" ]
 
 hub-ureq = [ "dep:ureq" ]
 hub-awc = [ "dep:awc" ]
