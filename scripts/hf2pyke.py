@@ -93,7 +93,7 @@ def reformat_tokenizer(out_path: Path):
 		res = subprocess.run(
 			[
 				'cargo', 'run', '--bin', 'diffusers-reserialize-clip',
-				'--features=onnx,stable-diffusion-txt2img',
+				'--features=onnx,stable-diffusion',
 				'--color', 'always',
 				'--',
 				Path(tmp) / 'tokenizer.json',
