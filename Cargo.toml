@@ -3,6 +3,7 @@ name = "pyke-diffusers"
 version = "0.1.0"
 rust-version = "1.62"
 edition = "2021"
+license = "Apache-2.0"
 
 [[bin]]
 name = "diffusers-reserialize-clip"
