@@ -76,7 +76,16 @@ if not os.path.exists(args.hf_path):
 		cache_dir=diffusers_cache_path,
 		token=True,
 		user_agent='pykeDiffusers/1.0',
-		resume_download=False
+		resume_download=True,
+		allow_patterns=[
+			"feature_extractor/*",
+			"safety_checker/*",
+			"text_encoder/*",
+			"tokenizer/*",
+			"unet/*",
+			"vae/*",
+			"model_index.json"
+		]
 	))
 
 OPSET = 15
