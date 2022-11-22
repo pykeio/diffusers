@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from datetime import date
 import errno
 import gc
+import json
 import os
 from pathlib import Path
 import posixpath
@@ -87,6 +88,14 @@ if not os.path.exists(args.hf_path):
 			"model_index.json"
 		]
 	))
+
+model_index = json.load(open(hf_path / 'model_index.json'))
+if not model_index['_diffusers_version']:
+	print('repo is not a HuggingFace diffusers model')
+	exit(1)
+if model_index['_class_name'] != 'StableDiffusionPipeline':
+	print('repo is not a Stable Diffusion model; only Stable Diffusion models are supported')
+	exit(1)
 
 OPSET = 15
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
