@@ -33,6 +33,7 @@ parser = ArgumentParser(prog='hf2pyke', description='Converts HuggingFace Diffus
 parser.add_argument('hf_path', type=Path, help='Path to the HuggingFace model to convert.')
 parser.add_argument('out_path', type=Path, help='Output path.')
 parser.add_argument('-f16', '--fp16', action='store_true', help='Whether or not the input model is in float16 format.')
+parser.add_argument('--no-collate', action='store_true', help='Do not collate UNet weights into a single file.')
 args = parser.parse_args()
 
 def collect_garbage():
@@ -231,7 +232,7 @@ def convert_unet(num_tokens: int, text_hidden_size: int):
 
 	unet_out_path = out_path
 	if needs_collate:
-		unet_out_path = out_path / '_unet_tmp'
+		unet_out_path = out_path / 'unet_data'
 		mkdirp(unet_out_path)
 
 	onnx_export(
@@ -254,7 +255,7 @@ def convert_unet(num_tokens: int, text_hidden_size: int):
 	del unet
 	collect_garbage()
 
-	if needs_collate:
+	if needs_collate and not args.no_collate:
 		unet = onnx.load(str((unet_out_path / 'unet.onnx').absolute().as_posix()))
 		onnx.save_model(
 			unet,
