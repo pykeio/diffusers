@@ -23,7 +23,8 @@ fn main() -> anyhow::Result<()> {
 		bos_token_id,
 		eos_token_id
 	};
-	let tokenizer_bin = serde_cbor::to_vec(&wrapper)?;
+	let mut tokenizer_bin = Vec::new();
+	ciborium::ser::into_writer(&wrapper, &mut tokenizer_bin)?;
 	std::fs::write(out_path, tokenizer_bin)?;
 
 	Ok(())
