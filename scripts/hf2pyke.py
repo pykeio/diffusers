@@ -111,8 +111,6 @@ def reformat_tokenizer(out_path: Path):
 			sys.stderr.write(res.stdout)
 			raise RuntimeError(f'`diffusers-reserialize-clip` exited with code {res.returncode}')
 
-reformat_tokenizer(out_path / 'tokenizer.bin')
-
 @torch.inference_mode()
 def onnx_export(
 	model: torch.nn.Module,
@@ -311,6 +309,8 @@ def convert_vae(unet_sample_size: int):
 	collect_garbage()
 
 with torch.no_grad():
+	reformat_tokenizer(out_path / 'tokenizer.bin')
+	
 	num_tokens, text_hidden_size = convert_text_encoder()
 	unet_sample_size = convert_unet(num_tokens, text_hidden_size)
 	convert_vae(unet_sample_size)
