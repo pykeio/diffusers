@@ -66,7 +66,7 @@ impl StableDiffusionPipeline {
 		let text_encoder = SessionBuilder::new(environment)?
 			.with_execution_providers([options.devices.text_encoder.clone().into()])?
 			.with_model_from_file(root.join("text_encoder.onnx"))?;
-		let tokenizer = CLIPStandardTokenizer::new(root.join("tokenizer.bin"))?;
+		let tokenizer = CLIPStandardTokenizer::new(root.join("tokenizer.json"))?;
 		let unet = SessionBuilder::new(environment)?
 			.with_execution_providers([options.devices.unet.clone().into()])?
 			.with_model_from_file(root.join("unet.onnx"))?;
@@ -136,7 +136,7 @@ impl StableDiffusionPipeline {
 		}
 		if flags.contains(StableDiffusionReplaceFlags::REPLACE_TOKENIZER) {
 			std::mem::drop(self.tokenizer);
-			self.tokenizer = CLIPStandardTokenizer::new(new_root.join("tokenizer.bin"))?;
+			self.tokenizer = CLIPStandardTokenizer::new(new_root.join("tokenizer.json"))?;
 		}
 		if flags.contains(StableDiffusionReplaceFlags::REPLACE_SAFETY_CHECKER) {
 			// we need to drop the old model before allocating the new one so we have enough memory

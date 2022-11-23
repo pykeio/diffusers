@@ -7,6 +7,7 @@ use tokenizers::{models::bpe::BPE, EncodeInput, PaddingParams, PaddingStrategy, 
 
 #[derive(Serialize, Deserialize)]
 pub struct CLIPStandardTokenizerWrapper {
+	#[serde(flatten)]
 	pub tokenizer: Tokenizer,
 	pub model_max_length: usize,
 	pub bos_token_id: u32,
@@ -31,7 +32,7 @@ impl CLIPStandardTokenizer {
 
 	/// Loads a CLIP tokenizer from a byte array.
 	pub fn from_bytes<B: AsRef<[u8]>>(bytes: B) -> anyhow::Result<Self> {
-		let mut wrapper: CLIPStandardTokenizerWrapper = ciborium::de::from_reader(bytes.as_ref())?;
+		let mut wrapper: CLIPStandardTokenizerWrapper = serde_json::from_slice(bytes.as_ref())?;
 		// For some reason, CLIP tokenizers lose their padding and truncation config when converting from the old HF tokenizers
 		// format, so we have to add them back here.
 		wrapper

@@ -112,7 +112,7 @@ def reformat_tokenizer(out_path: Path):
 		res = subprocess.run(
 			[
 				'cargo', 'run', '--bin', 'diffusers-reserialize-clip',
-				'--features=stable-diffusion,serde,serde_json',
+				'--features=tokenizers',
 				'--color', 'always',
 				'--',
 				Path(tmp) / 'tokenizer.json',
@@ -328,7 +328,7 @@ def convert_vae(unet_sample_size: int):
 	collect_garbage()
 
 with torch.no_grad():
-	reformat_tokenizer(out_path / 'tokenizer.bin')
+	reformat_tokenizer(out_path / 'tokenizer.json')
 	
 	num_tokens, text_hidden_size = convert_text_encoder()
 	unet_sample_size = convert_unet(num_tokens, text_hidden_size)

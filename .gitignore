@@ -3,5 +3,6 @@ target/
 __pycache__
 **/*.pyc
 **/*.bin
+**/tokenizer.json
 **/*.onnx
 Cargo.lock
