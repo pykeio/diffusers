@@ -58,6 +58,16 @@ pub struct SafetyCheckerConfig {
 	pub path: String
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct StableDiffusionModelHashes {
+	pub text_encoder: Option<String>,
+	pub unet: String,
+	pub vae_encoder: Option<String>,
+	pub vae_decoder: String,
+	pub safety_checker: String
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct StableDiffusionConfig {
@@ -66,7 +76,8 @@ pub struct StableDiffusionConfig {
 	pub text_encoder: Option<CLIPTextModelConfig>,
 	pub vae: VAEConfig,
 	pub unet: UNetConfig,
-	pub safety_checker: Option<SafetyCheckerConfig>
+	pub safety_checker: Option<SafetyCheckerConfig>,
+	pub hashes: StableDiffusionModelHashes
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

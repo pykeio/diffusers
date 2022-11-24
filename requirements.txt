@@ -2,6 +2,7 @@ accelerate
 ftfy
 diffusers
 huggingface-hub>=0.10.0
+imohash
 numpy
 onnx
 onnxruntime

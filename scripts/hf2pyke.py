@@ -15,6 +15,7 @@ from diffusers.models.unet_2d_condition import UNet2DConditionModel
 from diffusers.models.vae import AutoencoderKL, AutoencoderKLOutput, DecoderOutput
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from huggingface_hub import snapshot_download # type: ignore
+from imohash import hashfile
 import onnx
 from termcolor import cprint
 import torch
@@ -336,6 +337,14 @@ with torch.no_grad():
 	model_config['text-encoder'] = { "path": text_encoder_path.relative_to(out_path).as_posix() }
 	model_config['unet'] = { "path": unet_path.relative_to(out_path).as_posix() }
 	model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
+
+	model_config['hashes'] = {
+		"text-encoder": hashfile(text_encoder_path, hexdigest=True),
+		"unet": hashfile(unet_path, hexdigest=True),
+		"vae-encoder": hashfile(vae_encoder_path, hexdigest=True),
+		"vae-decoder": hashfile(vae_decoder_path, hexdigest=True),
+		"safety-checker": None
+	}
 
 	with open(out_path / 'diffusers.json', 'w') as f:
 		f.write(json.dumps(model_config))

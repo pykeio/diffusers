@@ -2,7 +2,6 @@
 
 use std::{cell::RefCell, fs, path::PathBuf, sync::Arc};
 
-use bitflags::bitflags;
 use image::{DynamicImage, Rgb32FImage};
 use ml2::onnx::{
 	tensor::{FromArray, InputTensor, OrtOwnedTensor},
@@ -19,33 +18,6 @@ use crate::{
 	schedulers::DiffusionScheduler,
 	Prompt, StableDiffusionCallback
 };
-
-bitflags! {
-	/// Helper to select which models to replace when using [`StableDiffusionPipeline::replace`].
-	pub struct StableDiffusionReplaceFlags: u32 {
-		/// Replace the UNet.
-		const REPLACE_UNET = 1 << 0;
-		/// Replace the variational autoencoder decoder.
-		const REPLACE_VAE_DECODER = 1 << 1;
-		/// Replace the text encoder.
-		const REPLACE_TEXT_ENCODER = 1 << 2;
-		/// Replace the tokenizer.
-		const REPLACE_TOKENIZER = 1 << 3;
-		/// Replace the variational autoencoder.
-		const REPLACE_VAE_ENCODER = 1 << 4;
-		/// Replace the safety checker.
-		const REPLACE_SAFETY_CHECKER = 1 << 5;
-
-		/// Replace all models.
-		const REPLACE_ALL =
-			Self::REPLACE_UNET.bits |
-			Self::REPLACE_VAE_DECODER.bits |
-			Self::REPLACE_TEXT_ENCODER.bits |
-			Self::REPLACE_TOKENIZER.bits |
-			Self::REPLACE_VAE_ENCODER.bits |
-			Self::REPLACE_SAFETY_CHECKER.bits;
-	}
-}
 
 /// A [Stable Diffusion](https://github.com/CompVis/stable-diffusion) pipeline.
 pub struct StableDiffusionPipeline {
@@ -155,25 +127,93 @@ impl StableDiffusionPipeline {
 		})
 	}
 
-	/// Replace some or all models in this pipeline.
+	/// Replace some or all models in this pipeline. This function will only replace models that are different to the
+	/// models currently loaded, which can save a good amount of time on slower hardware.
 	///
-	/// Most Stable Diffusion variants use the same VAE, text encoder, and safety checker as Stable Diffusion v1.4 &
-	/// v1.5. If you know beforehand what models are the same as the currently loaded pipeline, you can prevent deleting
-	/// and recreating an entire pipeline by modifying this pipeline in-place.
-	///
-	/// The VAE, text encoder, and safety checker for Stable Diffusion v1.5 and Waifu Diffusion v1.3 are confirmed to be
-	/// identical to Stable Diffusion v1.4's models. If using models converted from HuggingFace, you can conveniently
-	/// compare the SHA256 file hashes online by viewing the files in the model cards.
-	///
-	/// See [`StableDiffusionReplaceFlags`] for info on choosing which models to replace. In 99% of cases you'll just
-	/// want to replace the unet only: `StableDiffusionReplaceFlags::REPLACE_UNET`
+	/// An additional [`StableDiffusionOptions`] parameter can be used to move models to another device.
 	///
 	/// ```ignore
 	/// let mut pipeline = StableDiffusionPipeline::new(&environment, "./sd1.4/", &StableDiffusionOptions::default())?;
-	/// pipeline = pipeline.replace("./sd1.5/", StableDiffusionReplaceFlags::REPLACE_UNET)?;
+	/// pipeline = pipeline.replace("./sd1.5/", None)?;
 	/// ```
-	pub fn replace(mut self, new_root: impl Into<PathBuf>, flags: StableDiffusionReplaceFlags) -> anyhow::Result<Self> {
-		todo!();
+	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<&StableDiffusionOptions>) -> anyhow::Result<Self> {
+		let new_root: PathBuf = new_root.into();
+		let new_config: DiffusionPipeline = serde_json::from_reader(fs::read(new_root.join("diffusers.json"))?.as_slice())?;
+		let new_config: StableDiffusionConfig = match new_config {
+			DiffusionPipeline::StableDiffusion { framework, inner } => {
+				assert_eq!(framework, DiffusionFramework::Onnx);
+				inner
+			}
+			#[allow(unreachable_patterns)]
+			_ => anyhow::bail!("not a stable diffusion pipeline")
+		};
+
+		let options = options.unwrap_or(&self.options);
+
+		if self.config.hashes.unet != new_config.hashes.unet {
+			std::mem::drop(self.unet);
+			self.unet = RefCell::new(
+				SessionBuilder::new(&self.environment)?
+					.with_execution_providers([self.options.devices.unet.clone().into()])?
+					.with_model_from_file(new_root.join(new_config.unet.path.clone()))?
+			);
+		}
+		if self.config.hashes.text_encoder != new_config.hashes.text_encoder {
+			std::mem::drop(self.text_encoder);
+			self.text_encoder = new_config
+				.text_encoder
+				.as_ref()
+				.map(|text_encoder| -> OrtResult<RefCell<Session>> {
+					Ok(RefCell::new(
+						SessionBuilder::new(&self.environment)?
+							.with_execution_providers([options.devices.text_encoder.clone().into()])?
+							.with_model_from_file(new_root.join(text_encoder.path.clone()))?
+					))
+				})
+				.transpose()?
+		}
+		if self.config.hashes.vae_decoder != new_config.hashes.vae_decoder {
+			std::mem::drop(self.vae_decoder);
+			self.vae_decoder = RefCell::new(
+				SessionBuilder::new(&self.environment)?
+					.with_execution_providers([options.devices.vae_decoder.clone().into()])?
+					.with_model_from_file(new_root.join(new_config.vae.decoder.clone()))?
+			);
+		}
+		if self.config.hashes.vae_encoder != new_config.hashes.vae_encoder {
+			std::mem::drop(self.vae_encoder);
+			self.vae_encoder = new_config
+				.vae
+				.encoder
+				.as_ref()
+				.map(|path| -> OrtResult<RefCell<Session>> {
+					Ok(RefCell::new(
+						SessionBuilder::new(&self.environment)?
+							.with_execution_providers([options.devices.vae_encoder.clone().into()])?
+							.with_model_from_file(new_root.join(path))?
+					))
+				})
+				.transpose()?;
+		}
+		if self.config.hashes.safety_checker != new_config.hashes.safety_checker {
+			std::mem::drop(self.safety_checker);
+			self.safety_checker = new_config
+				.safety_checker
+				.as_ref()
+				.map(|safety_checker| -> OrtResult<RefCell<Session>> {
+					Ok(RefCell::new(
+						SessionBuilder::new(&self.environment)?
+							.with_execution_providers([options.devices.safety_checker.clone().into()])?
+							.with_model_from_file(new_root.join(safety_checker.path.clone()))?
+					))
+				})
+				.transpose()?;
+		}
+
+		self.options = options.clone();
+		self.config = new_config;
+
+		Ok(self)
 	}
 
 	/// Encodes the given prompt(s) into an array of text embeddings to be used as input to the UNet.
