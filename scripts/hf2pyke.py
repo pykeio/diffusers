@@ -230,7 +230,8 @@ def convert_unet(num_tokens: int, text_hidden_size: int) -> tuple[Path, int]:
 	onnx_export(
 		unet,
 		model_args=(
-			torch.randn(2, in_channels, sample_size, sample_size).to(device=DEVICE, dtype=IO_DTYPE),
+			# sample_size + 1 so non-default resolutions work - ONNX throws an error with just sample_size
+			torch.randn(2, in_channels, sample_size, sample_size + 1).to(device=DEVICE, dtype=IO_DTYPE),
 			torch.randn(2).to(device=DEVICE, dtype=IO_DTYPE),
 			torch.randn(2, num_tokens, text_hidden_size).to(device=DEVICE, dtype=IO_DTYPE)
 		),
