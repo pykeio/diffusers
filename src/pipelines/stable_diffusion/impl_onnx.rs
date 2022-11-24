@@ -265,6 +265,13 @@ impl StableDiffusionPipeline {
 		Ok(text_embeddings)
 	}
 
+	fn to_image(&self, width: u32, height: u32, arr: &Array4<f32>) -> anyhow::Result<DynamicImage> {
+		Ok(DynamicImage::ImageRgb32F(
+			Rgb32FImage::from_raw(width, height, arr.map(|f| f.clamp(0.0, 1.0)).into_iter().collect::<Vec<_>>())
+				.ok_or_else(|| anyhow::anyhow!("failed to construct image"))?
+		))
+	}
+
 	/// Decodes UNet latents via the variational autoencoder into an array of [`image::DynamicImage`]s.
 	pub fn decode_latents(&self, mut latents: Array4<f32>, options: &StableDiffusionTxt2ImgOptions) -> anyhow::Result<Vec<DynamicImage>> {
 		latents = 1.0 / 0.18215 * latents;
@@ -279,10 +286,8 @@ impl StableDiffusionPipeline {
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
 			let f_image = f_image.permuted_axes([0, 2, 3, 1]).map(|f| (f / 2.0 + 0.5).clamp(0.0, 1.0));
 
-			images.push(DynamicImage::ImageRgb32F(
-				Rgb32FImage::from_raw(options.width, options.height, f_image.map(|f| f.clamp(0.0, 1.0)).into_iter().collect::<Vec<_>>())
-					.ok_or_else(|| anyhow::anyhow!("failed to construct image"))?
-			));
+			let image = self.to_image(options.width, options.height, &f_image)?;
+			images.push(image);
 		}
 
 		Ok(images)
