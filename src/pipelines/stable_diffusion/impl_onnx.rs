@@ -295,7 +295,6 @@ impl StableDiffusionPipeline {
 			let timestep: ArrayD<f32> = Array1::from_iter([*t]).into_dyn();
 			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
 
-			println!("{latent_model_input:?}");
 			let noise_pred = unet.run(vec![
 				InputTensor::from_array(latent_model_input),
 				InputTensor::from_array(timestep),
