@@ -21,6 +21,7 @@ from termcolor import cprint
 import torch
 from transformers import CLIPTextModel, CLIPTokenizerFast
 from transformers.modeling_outputs import BaseModelOutputWithPooling
+from transformers.models.clip.configuration_clip import CLIPConfig
 from yaspin import yaspin, spinners
 
 warnings.filterwarnings('ignore')
@@ -157,6 +158,14 @@ class AutoencoderKLIOWrapper(AutoencoderKL):
 		outputs: DecoderOutput = AutoencoderKL.decode(self, z, True) # type: ignore
 		return (outputs.sample.to(dtype=IO_DTYPE),)
 
+class SafetyCheckerIOWrapper(StableDiffusionSafetyChecker):
+	def forward(self, clip_input: torch.Tensor, images: torch.Tensor) -> Tuple:
+		clip_input = clip_input.to(dtype=MODEL_DTYPE)
+		images = images.to(dtype=MODEL_DTYPE)
+
+		images, has_nsfw_concepts = StableDiffusionSafetyChecker.forward_onnx(self, clip_input, images) # type: ignore
+		return (images.to(dtype=IO_DTYPE), has_nsfw_concepts)
+
 T = TypeVar('T')
 
 @torch.inference_mode()
@@ -269,7 +278,7 @@ def convert_unet(num_tokens: int, text_hidden_size: int) -> tuple[Path, int]:
 	return unet_out_path / 'unet.onnx', sample_size
 
 @yaspin(text='Converting VAE', spinner=spinner)
-def convert_vae(unet_sample_size: int) -> tuple[Path, Path, int]:
+def convert_vae(unet_sample_size: int) -> tuple[Path, Path, int, int]:
 	vae = load_efficient(AutoencoderKLIOWrapper, hf_path / 'vae')
 
 	vae_in_channels = vae.config['in_channels']
@@ -304,7 +313,37 @@ def convert_vae(unet_sample_size: int) -> tuple[Path, Path, int]:
 	del vae
 	collect_garbage()
 
-	return out_path / 'vae_encoder.onnx', out_path / 'vae_decoder.onnx', vae_out_channels
+	return out_path / 'vae_encoder.onnx', out_path / 'vae_decoder.onnx', vae_sample_size, vae_out_channels
+
+@yaspin(text='Converting safety checker', spinner=spinner)
+def convert_safety_checker(vae_sample_size: int, vae_out_channels: int) -> Path:
+	with accelerate.init_empty_weights():
+		safety_checker = SafetyCheckerIOWrapper(CLIPConfig.from_json_file(hf_path / 'safety_checker' / 'config.json')) # type: ignore
+	
+	accelerate.load_checkpoint_and_dispatch(safety_checker, hf_path / 'safety_checker' / 'pytorch_model.bin', device_map='auto')
+
+	safety_checker = safety_checker.to(dtype=MODEL_DTYPE, device=DEVICE)
+	safety_checker.eval()
+
+	clip_num_channels = safety_checker.config.vision_config.num_channels
+	clip_image_size = safety_checker.config.vision_config.image_size
+
+	onnx_export(
+		safety_checker,
+		model_args=(
+			torch.randn(1, clip_num_channels, clip_image_size, clip_image_size).to(device=DEVICE, dtype=IO_DTYPE),
+			torch.randn(1, vae_sample_size, vae_sample_size, vae_out_channels).to(device=DEVICE, dtype=IO_DTYPE)
+		),
+		output_path=out_path / 'safety_checker.onnx',
+		ordered_input_names=['clip_input', 'images'],
+		output_names=['out_images', 'has_nsfw_concepts'],
+		dynamic_axes={
+			"clip_input": {0: "batch", 1: "channels", 2: "height", 3: "width"},
+			"images": {0: "batch", 1: "height", 2: "width", 3: "channels"}
+		}
+	)
+
+	return out_path / 'safety_checker.onnx'
 
 with torch.no_grad():
 	tokenizer = CLIPTokenizerFast.from_pretrained(hf_path / 'tokenizer')
@@ -332,18 +371,20 @@ with torch.no_grad():
 
 	text_encoder_path, num_tokens, text_hidden_size = convert_text_encoder()
 	unet_path, unet_sample_size = convert_unet(num_tokens, text_hidden_size)
-	vae_encoder_path, vae_decoder_path, vae_out_channels = convert_vae(unet_sample_size)
+	vae_encoder_path, vae_decoder_path, vae_sample_size, vae_out_channels = convert_vae(unet_sample_size)
+	safety_checker_path = convert_safety_checker(vae_sample_size, vae_out_channels)
 
 	model_config['text-encoder'] = { "path": text_encoder_path.relative_to(out_path).as_posix() }
 	model_config['unet'] = { "path": unet_path.relative_to(out_path).as_posix() }
 	model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
+	model_config['safety-checker'] = { "path": safety_checker_path.relative_to(out_path).as_posix() }
 
 	model_config['hashes'] = {
 		"text-encoder": hashfile(text_encoder_path, hexdigest=True),
 		"unet": hashfile(unet_path, hexdigest=True),
 		"vae-encoder": hashfile(vae_encoder_path, hexdigest=True),
 		"vae-decoder": hashfile(vae_decoder_path, hexdigest=True),
-		"safety-checker": None
+		"safety-checker": hashfile(safety_checker_path, hexdigest=True)
 	}
 
 	with open(out_path / 'diffusers.json', 'w') as f:
