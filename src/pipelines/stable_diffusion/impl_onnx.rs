@@ -1,19 +1,24 @@
 #![allow(dead_code)]
 
-use std::{cell::RefCell, path::PathBuf, sync::Arc};
+use std::{cell::RefCell, fs, path::PathBuf, sync::Arc};
 
 use bitflags::bitflags;
 use image::{DynamicImage, Rgb32FImage};
 use ml2::onnx::{
 	tensor::{FromArray, InputTensor, OrtOwnedTensor},
-	Environment, Session, SessionBuilder
+	Environment, OrtResult, Session, SessionBuilder
 };
 use ndarray::{concatenate, Array1, Array2, Array4, ArrayD, Axis, IxDyn};
 use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use super::{StableDiffusionOptions, StableDiffusionTxt2ImgOptions};
-use crate::{clip::CLIPStandardTokenizer, schedulers::DiffusionScheduler, Prompt, StableDiffusionCallback};
+use crate::{
+	clip::CLIPStandardTokenizer,
+	config::{DiffusionFramework, DiffusionPipeline, StableDiffusionConfig, TokenizerConfig},
+	schedulers::DiffusionScheduler,
+	Prompt, StableDiffusionCallback
+};
 
 bitflags! {
 	/// Helper to select which models to replace when using [`StableDiffusionPipeline::replace`].
@@ -46,12 +51,14 @@ bitflags! {
 pub struct StableDiffusionPipeline {
 	environment: Arc<Environment>,
 	options: StableDiffusionOptions,
+	config: StableDiffusionConfig,
+	vae_encoder: Option<RefCell<Session>>,
 	vae_decoder: RefCell<Session>,
-	text_encoder: RefCell<Session>,
-	tokenizer: CLIPStandardTokenizer,
+	text_encoder: Option<RefCell<Session>>,
+	tokenizer: Option<CLIPStandardTokenizer>,
 	unet: RefCell<Session>,
 	safety_checker: Option<RefCell<Session>>,
-	feature_extractor: Option<RefCell<Session>>
+	feature_extractor: Option<RefCell<()>>
 }
 
 impl StableDiffusionPipeline {
@@ -60,31 +67,91 @@ impl StableDiffusionPipeline {
 	/// `environment` must be an [`ml2::onnx::Environment`]. Only one environment can be created per process.
 	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: &StableDiffusionOptions) -> anyhow::Result<Self> {
 		let root: PathBuf = root.into();
-		let vae_decoder = SessionBuilder::new(environment)?
-			.with_execution_providers([options.devices.vae_decoder.clone().into()])?
-			.with_model_from_file(root.join("vae_decoder.onnx"))?;
-		let text_encoder = SessionBuilder::new(environment)?
-			.with_execution_providers([options.devices.text_encoder.clone().into()])?
-			.with_model_from_file(root.join("text_encoder.onnx"))?;
-		let tokenizer = CLIPStandardTokenizer::new(root.join("tokenizer.json"))?;
-		let unet = SessionBuilder::new(environment)?
-			.with_execution_providers([options.devices.unet.clone().into()])?
-			.with_model_from_file(root.join("unet.onnx"))?;
-		let safety_checker = SessionBuilder::new(environment)?
-			.with_execution_providers([options.devices.safety_checker.clone().into()])?
-			.with_model_from_file(root.join("safety_checker.onnx"))
-			.map(|s| Some(RefCell::new(s)))
-			.unwrap_or(None);
-		let feature_extractor = None;
+		let config: DiffusionPipeline = serde_json::from_reader(fs::read(root.join("diffusers.json"))?.as_slice())?;
+		let config: StableDiffusionConfig = match config {
+			DiffusionPipeline::StableDiffusion { framework, inner } => {
+				assert_eq!(framework, DiffusionFramework::Onnx);
+				inner
+			}
+			#[allow(unreachable_patterns)]
+			_ => anyhow::bail!("not a stable diffusion pipeline")
+		};
+
+		let tokenizer = config
+			.tokenizer
+			.as_ref()
+			.map(|tokenizer| match tokenizer {
+				TokenizerConfig::CLIPTokenizer {
+					path,
+					model_max_length,
+					bos_token,
+					eos_token
+				} => CLIPStandardTokenizer::new(root.join(path.clone()), *model_max_length, *bos_token, *eos_token),
+				#[allow(unreachable_patterns)]
+				_ => anyhow::bail!("not a clip tokenizer")
+			})
+			.transpose()?;
+
+		let text_encoder = config
+			.text_encoder
+			.as_ref()
+			.map(|text_encoder| -> OrtResult<RefCell<Session>> {
+				Ok(RefCell::new(
+					SessionBuilder::new(environment)?
+						.with_execution_providers([options.devices.text_encoder.clone().into()])?
+						.with_model_from_file(root.join(text_encoder.path.clone()))?
+				))
+			})
+			.transpose()?;
+
+		let vae_encoder = config
+			.vae
+			.encoder
+			.as_ref()
+			.map(|path| -> OrtResult<RefCell<Session>> {
+				Ok(RefCell::new(
+					SessionBuilder::new(environment)?
+						.with_execution_providers([options.devices.vae_encoder.clone().into()])?
+						.with_model_from_file(root.join(path))?
+				))
+			})
+			.transpose()?;
+
+		let vae_decoder = RefCell::new(
+			SessionBuilder::new(environment)?
+				.with_execution_providers([options.devices.vae_decoder.clone().into()])?
+				.with_model_from_file(root.join(config.vae.decoder.clone()))?
+		);
+
+		let unet = RefCell::new(
+			SessionBuilder::new(environment)?
+				.with_execution_providers([options.devices.unet.clone().into()])?
+				.with_model_from_file(root.join(config.unet.path.clone()))?
+		);
+
+		let safety_checker = config
+			.safety_checker
+			.as_ref()
+			.map(|safety_checker| -> OrtResult<RefCell<Session>> {
+				Ok(RefCell::new(
+					SessionBuilder::new(environment)?
+						.with_execution_providers([options.devices.safety_checker.clone().into()])?
+						.with_model_from_file(root.join(safety_checker.path.clone()))?
+				))
+			})
+			.transpose()?;
+
 		Ok(Self {
 			environment: Arc::clone(environment),
 			options: options.clone(),
-			vae_decoder: RefCell::new(vae_decoder),
-			text_encoder: RefCell::new(text_encoder),
+			config,
+			vae_encoder,
+			vae_decoder,
+			text_encoder,
 			tokenizer,
-			unet: RefCell::new(unet),
+			unet,
 			safety_checker,
-			feature_extractor
+			feature_extractor: None
 		})
 	}
 
@@ -106,85 +173,51 @@ impl StableDiffusionPipeline {
 	/// pipeline = pipeline.replace("./sd1.5/", StableDiffusionReplaceFlags::REPLACE_UNET)?;
 	/// ```
 	pub fn replace(mut self, new_root: impl Into<PathBuf>, flags: StableDiffusionReplaceFlags) -> anyhow::Result<Self> {
-		let new_root = new_root.into();
-		if flags.contains(StableDiffusionReplaceFlags::REPLACE_UNET) {
-			// we need to drop the old model before allocating the new one so we have enough memory
-			std::mem::drop(self.unet);
-			self.unet = RefCell::new(
-				SessionBuilder::new(&self.environment)?
-					.with_execution_providers([self.options.devices.unet.clone().into()])?
-					.with_model_from_file(new_root.join("unet.onnx"))?
-			);
-		}
-		if flags.contains(StableDiffusionReplaceFlags::REPLACE_VAE_DECODER) {
-			// we need to drop the old model before allocating the new one so we have enough memory
-			std::mem::drop(self.vae_decoder);
-			self.vae_decoder = RefCell::new(
-				SessionBuilder::new(&self.environment)?
-					.with_execution_providers([self.options.devices.vae_decoder.clone().into()])?
-					.with_model_from_file(new_root.join("vae_decoder.onnx"))?
-			);
-		}
-		if flags.contains(StableDiffusionReplaceFlags::REPLACE_TEXT_ENCODER) {
-			// we need to drop the old model before allocating the new one so we have enough memory
-			std::mem::drop(self.text_encoder);
-			self.text_encoder = RefCell::new(
-				SessionBuilder::new(&self.environment)?
-					.with_execution_providers([self.options.devices.text_encoder.clone().into()])?
-					.with_model_from_file(new_root.join("text_encoder.onnx"))?
-			);
-		}
-		if flags.contains(StableDiffusionReplaceFlags::REPLACE_TOKENIZER) {
-			std::mem::drop(self.tokenizer);
-			self.tokenizer = CLIPStandardTokenizer::new(new_root.join("tokenizer.json"))?;
-		}
-		if flags.contains(StableDiffusionReplaceFlags::REPLACE_SAFETY_CHECKER) {
-			// we need to drop the old model before allocating the new one so we have enough memory
-			std::mem::drop(self.safety_checker);
-			self.safety_checker = SessionBuilder::new(&self.environment)?
-				.with_execution_providers([self.options.devices.safety_checker.clone().into()])?
-				.with_model_from_file(new_root.join("safety_checker.onnx"))
-				.map(|s| Some(RefCell::new(s)))
-				.unwrap_or(None);
-		}
-		Ok(self)
+		todo!();
 	}
 
 	/// Encodes the given prompt(s) into an array of text embeddings to be used as input to the UNet.
 	pub fn encode_prompt(&self, prompt: Prompt, do_classifier_free_guidance: bool, negative_prompt: Option<&Prompt>) -> anyhow::Result<ArrayD<f32>> {
+		let tokenizer = self
+			.tokenizer
+			.as_ref()
+			.ok_or_else(|| anyhow::anyhow!("tokenizer required for text-based generation"))?;
+
 		if let Some(neg_prompt) = negative_prompt {
 			assert_eq!(prompt.len(), neg_prompt.len());
 		}
 
 		let batch_size = prompt.len();
-		let text_input_ids: Vec<Vec<i32>> = self
-			.tokenizer
+		let text_input_ids: Vec<Vec<i32>> = tokenizer
 			.encode(prompt.0)?
 			.iter()
 			.map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
 			.collect();
 		for batch in &text_input_ids {
-			if batch.len() > self.tokenizer.len() {
+			if batch.len() > tokenizer.len() {
 				anyhow::bail!("prompts over 77 tokens is not currently implemented");
 			}
 		}
 
-		let mut text_encoder = self.text_encoder.borrow_mut();
+		let mut text_encoder = self
+			.text_encoder
+			.as_ref()
+			.ok_or_else(|| anyhow::anyhow!("text encoder required for text-based generation"))?
+			.borrow_mut();
 		let text_input_ids: Vec<i32> = text_input_ids.into_iter().flatten().collect();
-		let text_input_ids = Array2::from_shape_vec((batch_size, self.tokenizer.len()), text_input_ids)?.into_dyn();
+		let text_input_ids = Array2::from_shape_vec((batch_size, tokenizer.len()), text_input_ids)?.into_dyn();
 		let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
 
 		let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
 
 		if do_classifier_free_guidance {
-			let uncond_input: Vec<i32> = self
-				.tokenizer
+			let uncond_input: Vec<i32> = tokenizer
 				.encode(negative_prompt.cloned().unwrap_or_else(|| vec![""; batch_size].into()).0)?
 				.iter()
 				.flat_map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
 				.collect();
 			let uncond_embeddings =
-				text_encoder.run(vec![InputTensor::from_array(Array2::from_shape_vec((batch_size, self.tokenizer.len()), uncond_input)?.into_dyn())])?;
+				text_encoder.run(vec![InputTensor::from_array(Array2::from_shape_vec((batch_size, tokenizer.len()), uncond_input)?.into_dyn())])?;
 			let uncond_embeddings: ArrayD<f32> = uncond_embeddings[0].try_extract()?.view().to_owned();
 			text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
 		}
@@ -262,6 +295,7 @@ impl StableDiffusionPipeline {
 			let timestep: ArrayD<f32> = Array1::from_iter([*t]).into_dyn();
 			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
 
+			println!("{latent_model_input:?}");
 			let noise_pred = unet.run(vec![
 				InputTensor::from_array(latent_model_input),
 				InputTensor::from_array(timestep),

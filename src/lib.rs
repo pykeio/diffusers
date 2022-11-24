@@ -6,6 +6,7 @@
 
 #[doc(hidden)]
 pub mod clip;
+pub(crate) mod config;
 pub mod pipelines;
 pub mod schedulers;
 pub(crate) mod util;

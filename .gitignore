@@ -3,6 +3,7 @@ target/
 __pycache__
 **/*.pyc
 **/*.bin
-**/tokenizer.json
 **/*.onnx
+**/tokenizer.json
+**/diffusers.json
 Cargo.lock

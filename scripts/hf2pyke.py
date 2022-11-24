@@ -7,10 +7,7 @@ import os
 from pathlib import Path
 import posixpath
 import shutil
-import subprocess
-import sys
-from tempfile import TemporaryDirectory
-from typing import List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 import warnings
 
 import accelerate
@@ -97,38 +94,15 @@ if model_index['_class_name'] != 'StableDiffusionPipeline':
 	print('repo is not a Stable Diffusion model; only Stable Diffusion models are supported')
 	exit(1)
 
+model_config: Dict[str, Any] = {
+	'pipeline': 'stable-diffusion',
+	'framework': 'onnx'
+}
+
 OPSET = 15
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 MODEL_DTYPE = torch.float16 if args.fp16 else torch.float32
 IO_DTYPE = torch.float32
-
-tokenizer = CLIPTokenizerFast.from_pretrained(hf_path / 'tokenizer')
-
-@yaspin(text='Reformatting tokenizer', spinner=spinner)
-def reformat_tokenizer(out_path: Path):
-	with TemporaryDirectory() as tmp:
-		tokenizer.save_pretrained(tmp)
-
-		res = subprocess.run(
-			[
-				'cargo', 'run', '--bin', 'diffusers-reserialize-clip',
-				'--features=tokenizers',
-				'--color', 'always',
-				'--',
-				Path(tmp) / 'tokenizer.json',
-				out_path,
-				str(tokenizer.model_max_length),
-				str(tokenizer.bos_token_id),
-				str(tokenizer.eos_token_id)
-			],
-			cwd=root,
-			stdout=subprocess.PIPE,
-			stderr=subprocess.STDOUT,
-			universal_newlines=True
-		)
-		if res.returncode != 0:
-			sys.stderr.write(res.stdout)
-			raise RuntimeError(f'`diffusers-reserialize-clip` exited with code {res.returncode}')
 
 @torch.inference_mode()
 def onnx_export(
@@ -199,7 +173,7 @@ def load_efficient(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorc
 	return model
 
 @yaspin(text='Converting text encoder', spinner=spinner)
-def convert_text_encoder() -> Tuple[int, int]:
+def convert_text_encoder() -> Tuple[Path, int, int]:
 	text_encoder: CLIPTextModelIOWrapper = CLIPTextModelIOWrapper.from_pretrained(hf_path / 'text_encoder') # type: ignore
 	text_encoder = text_encoder.to(dtype=MODEL_DTYPE, device=DEVICE)
 	text_encoder.eval()
@@ -230,10 +204,10 @@ def convert_text_encoder() -> Tuple[int, int]:
 	del text_encoder
 	collect_garbage()
 
-	return num_tokens, text_hidden_size
+	return out_path / 'text_encoder.onnx', num_tokens, text_hidden_size
 
 @yaspin(text='Converting UNet', spinner=spinner)
-def convert_unet(num_tokens: int, text_hidden_size: int):
+def convert_unet(num_tokens: int, text_hidden_size: int) -> tuple[Path, int]:
 	unet = load_efficient(UNet2DConditionModelIOWrapper, hf_path / 'unet')
 
 	unet_model_size = 0
@@ -288,11 +262,12 @@ def convert_unet(num_tokens: int, text_hidden_size: int):
 		collect_garbage()
 
 		shutil.rmtree(unet_out_path)
+		unet_out_path = out_path
 
-	return sample_size
+	return unet_out_path / 'unet.onnx', sample_size
 
 @yaspin(text='Converting VAE', spinner=spinner)
-def convert_vae(unet_sample_size: int):
+def convert_vae(unet_sample_size: int) -> tuple[Path, Path, int]:
 	vae = load_efficient(AutoencoderKLIOWrapper, hf_path / 'vae')
 
 	vae_in_channels = vae.config['in_channels']
@@ -327,11 +302,41 @@ def convert_vae(unet_sample_size: int):
 	del vae
 	collect_garbage()
 
+	return out_path / 'vae_encoder.onnx', out_path / 'vae_decoder.onnx', vae_out_channels
+
 with torch.no_grad():
-	reformat_tokenizer(out_path / 'tokenizer.json')
-	
-	num_tokens, text_hidden_size = convert_text_encoder()
-	unet_sample_size = convert_unet(num_tokens, text_hidden_size)
-	convert_vae(unet_sample_size)
+	tokenizer = CLIPTokenizerFast.from_pretrained(hf_path / 'tokenizer')
+	tokenizer.backend_tokenizer.save(str(out_path / 'tokenizer.json'))
+	model_config['tokenizer'] = {
+		'type': 'CLIPTokenizer',
+		'path': 'tokenizer.json',
+		'model-max-length': tokenizer.model_max_length,
+		'bos-token': tokenizer.bos_token_id,
+		'eos-token': tokenizer.eos_token_id
+	}
+
+	feature_extractor = json.load(open(hf_path / 'feature_extractor' / 'preprocessor_config.json'))
+	model_config['feature-extractor'] = {
+		'resample': feature_extractor['resample'],
+		'size': feature_extractor['size'],
+		'crop': [ feature_extractor['crop_size'], feature_extractor['crop_size'] ],
+		'crop-center': feature_extractor['do_center_crop'],
+		'rgb': feature_extractor['do_convert_rgb'],
+		'normalize': feature_extractor['do_normalize'],
+		'resize': feature_extractor['do_resize'],
+		'image-mean': feature_extractor['image_mean'],
+		'image-std': feature_extractor['image_std']
+	}
+
+	text_encoder_path, num_tokens, text_hidden_size = convert_text_encoder()
+	unet_path, unet_sample_size = convert_unet(num_tokens, text_hidden_size)
+	vae_encoder_path, vae_decoder_path, vae_out_channels = convert_vae(unet_sample_size)
+
+	model_config['text-encoder'] = { "path": text_encoder_path.relative_to(out_path).as_posix() }
+	model_config['unet'] = { "path": unet_path.relative_to(out_path).as_posix() }
+	model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
+
+	with open(out_path / 'diffusers.json', 'w') as f:
+		f.write(json.dumps(model_config))
 
 cprint(f'✨ Your model is ready! {str(out_path)}')

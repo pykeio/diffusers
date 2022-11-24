@@ -5,11 +5,6 @@ rust-version = "1.62"
 edition = "2021"
 license = "Apache-2.0"
 
-[[bin]]
-name = "diffusers-reserialize-clip"
-path = "scripts/reserialize_clip_tokenizer.rs"
-required-features = [ "tokenizers" ]
-
 [dependencies]
 ndarray = { version = "0.15", features = [ "rayon" ] }
 ndarray-rand = "0.14"
