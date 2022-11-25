@@ -220,6 +220,12 @@ def convert_text_encoder() -> Tuple[Path, int, int]:
 def convert_unet(num_tokens: int, text_hidden_size: int) -> tuple[Path, int]:
 	unet = load_efficient(UNet2DConditionModelIOWrapper, hf_path / 'unet')
 
+	if isinstance(unet.config.attention_head_dim, int): # type: ignore
+		slice_size = unet.config.attention_head_dim // 2 # type: ignore
+	else:
+		slice_size = min(unet.config.attention_head_dim) # type: ignore
+	unet.set_attention_slice(slice_size)
+
 	unet_model_size = 0
 	for param in unet.parameters():
 		unet_model_size += param.nelement() * param.element_size()
@@ -356,36 +362,40 @@ with torch.no_grad():
 		'eos-token': tokenizer.eos_token_id
 	}
 
-	feature_extractor = json.load(open(hf_path / 'feature_extractor' / 'preprocessor_config.json'))
-	model_config['feature-extractor'] = {
-		'resample': feature_extractor['resample'],
-		'size': feature_extractor['size'],
-		'crop': [ feature_extractor['crop_size'], feature_extractor['crop_size'] ],
-		'crop-center': feature_extractor['do_center_crop'],
-		'rgb': feature_extractor['do_convert_rgb'],
-		'normalize': feature_extractor['do_normalize'],
-		'resize': feature_extractor['do_resize'],
-		'image-mean': feature_extractor['image_mean'],
-		'image-std': feature_extractor['image_std']
-	}
+	if os.path.exists(hf_path / 'feature_extractor'):
+		feature_extractor = json.load(open(hf_path / 'feature_extractor' / 'preprocessor_config.json'))
+		model_config['feature-extractor'] = {
+			'resample': feature_extractor['resample'],
+			'size': feature_extractor['size'],
+			'crop': [ feature_extractor['crop_size'], feature_extractor['crop_size'] ],
+			'crop-center': feature_extractor['do_center_crop'],
+			'rgb': feature_extractor['do_convert_rgb'],
+			'normalize': feature_extractor['do_normalize'],
+			'resize': feature_extractor['do_resize'],
+			'image-mean': feature_extractor['image_mean'],
+			'image-std': feature_extractor['image_std']
+		}
 
 	text_encoder_path, num_tokens, text_hidden_size = convert_text_encoder()
 	unet_path, unet_sample_size = convert_unet(num_tokens, text_hidden_size)
 	vae_encoder_path, vae_decoder_path, vae_sample_size, vae_out_channels = convert_vae(unet_sample_size)
-	safety_checker_path = convert_safety_checker(vae_sample_size, vae_out_channels)
 
 	model_config['text-encoder'] = { "path": text_encoder_path.relative_to(out_path).as_posix() }
 	model_config['unet'] = { "path": unet_path.relative_to(out_path).as_posix() }
 	model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
-	model_config['safety-checker'] = { "path": safety_checker_path.relative_to(out_path).as_posix() }
 
 	model_config['hashes'] = {
 		"text-encoder": hashfile(text_encoder_path, hexdigest=True),
 		"unet": hashfile(unet_path, hexdigest=True),
 		"vae-encoder": hashfile(vae_encoder_path, hexdigest=True),
 		"vae-decoder": hashfile(vae_decoder_path, hexdigest=True),
-		"safety-checker": hashfile(safety_checker_path, hexdigest=True)
+		"safety-checker": None
 	}
+
+	if os.path.exists(hf_path / 'safety_checker'):
+		safety_checker_path = convert_safety_checker(vae_sample_size, vae_out_channels)
+		model_config['safety-checker'] = { "path": safety_checker_path.relative_to(out_path).as_posix() }
+		model_config['hashes']['safety-checker'] = hashfile(safety_checker_path, hexdigest=True)
 
 	with open(out_path / 'diffusers.json', 'w') as f:
 		f.write(json.dumps(model_config))
