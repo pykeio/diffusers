@@ -65,7 +65,7 @@ pub struct StableDiffusionModelHashes {
 	pub unet: String,
 	pub vae_encoder: Option<String>,
 	pub vae_decoder: String,
-	pub safety_checker: String
+	pub safety_checker: Option<String>
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
