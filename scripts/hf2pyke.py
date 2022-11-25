@@ -109,7 +109,7 @@ IO_DTYPE = torch.float32
 @torch.inference_mode()
 def onnx_export(
 	model: torch.nn.Module,
-	model_args: tuple,
+	model_args: Tuple,
 	output_path: Path,
 	ordered_input_names: List[str],
 	output_names: List[str],
@@ -217,7 +217,7 @@ def convert_text_encoder() -> Tuple[Path, int, int]:
 	return out_path / 'text_encoder.onnx', num_tokens, text_hidden_size
 
 @yaspin(text='Converting UNet', spinner=spinner)
-def convert_unet(num_tokens: int, text_hidden_size: int) -> tuple[Path, int]:
+def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
 	unet = load_efficient(UNet2DConditionModelIOWrapper, hf_path / 'unet')
 
 	if isinstance(unet.config.attention_head_dim, int): # type: ignore
@@ -284,7 +284,7 @@ def convert_unet(num_tokens: int, text_hidden_size: int) -> tuple[Path, int]:
 	return unet_out_path / 'unet.onnx', sample_size
 
 @yaspin(text='Converting VAE', spinner=spinner)
-def convert_vae(unet_sample_size: int) -> tuple[Path, Path, int, int]:
+def convert_vae(unet_sample_size: int) -> Tuple[Path, Path, int, int]:
 	vae = load_efficient(AutoencoderKLIOWrapper, hf_path / 'vae')
 
 	vae_in_channels = vae.config['in_channels']
