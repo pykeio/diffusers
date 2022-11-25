@@ -34,6 +34,7 @@ parser.add_argument('hf_path', type=Path, help='Path to the HuggingFace model to
 parser.add_argument('out_path', type=Path, help='Output path.')
 parser.add_argument('-f16', '--fp16', action='store_true', help='Whether or not the input model is in float16 format.')
 parser.add_argument('--no-collate', action='store_true', help='Do not collate UNet weights into a single file.')
+parser.add_argument('--override-unet-sample-size', type=int, required=False, help='Override the sample size when converting the UNet.')
 args = parser.parse_args()
 
 def collect_garbage():
@@ -236,7 +237,7 @@ def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
 	needs_collate = unet_model_size_mb > 2000
 
 	in_channels = unet.config['in_channels']
-	sample_size = unet.config['sample_size']
+	sample_size = args.override_unet_sample_size or unet.config['sample_size']
 
 	unet_out_path = out_path
 	if needs_collate:
