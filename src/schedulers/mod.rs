@@ -103,7 +103,8 @@ impl SchedulerStepOutput {
 /// A scheduler to be used in diffusion pipelines.
 #[allow(clippy::len_without_is_empty)]
 pub trait DiffusionScheduler: Default + Clone {
-	/// Scales the denoising model input by `(sigma**2 + 1) ** 0.5` to match the K-LMS algorithm.
+	/// Ensures interchangeability with schedulers that need to scale the denoising model input depending on the
+	/// current timestep.
 	fn scale_model_input(&mut self, sample: ArrayView4<'_, f32>, timestep: f32) -> Array4<f32>;
 
 	/// Sets the number of inference steps. This should be called before `step` to properly compute the sigmas and

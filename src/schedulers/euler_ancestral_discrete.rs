@@ -43,11 +43,7 @@ impl EulerAncestralDiscreteScheduler {
 	/// - `num_train_timesteps` is 0
 	/// - `beta_start` or `beta_end` are not normal numbers (not zero, infinite, `NaN`, or subnormal)
 	/// - `beta_end` is less than or equal to `beta_start`
-	///
-	/// # Panics
-	/// - if the GSL `IntegrationWorkspace` could not be created, which can happen if `num_train_timesteps` is
-	///   exceptionally large
-	/// - if the `sigmas` array cannot be reduced, which can happen if `num_train_timesteps` is 0
+	/// - the given [`BetaSchedule`] is not supported by this scheduler
 	pub fn new(num_train_timesteps: usize, beta_start: f32, beta_end: f32, beta_schedule: &BetaSchedule) -> anyhow::Result<Self> {
 		if num_train_timesteps == 0 {
 			anyhow::bail!("num_train_timesteps ({num_train_timesteps}) must be >0");
