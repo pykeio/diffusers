@@ -41,109 +41,103 @@ pub mod pipelines;
 pub mod schedulers;
 pub(crate) mod util;
 
-#[cfg(feature = "onnx")]
 pub use ort::Environment as OrtEnvironment;
-#[cfg(feature = "onnx")]
 use ort::ExecutionProvider;
 
 pub use self::pipelines::*;
 pub use self::schedulers::*;
 
-cfg_if::cfg_if! {
-	if #[cfg(feature = "onnx")] {
-		/// The strategy to use for extending the device memory arena.
-		#[derive(Debug, Clone, PartialEq, Eq)]
-		pub enum ArenaExtendStrategy {
-			/// Subsequent memory allocations extend by larger amounts (multiplied by powers of two)
-			PowerOfTwo,
-			/// Memory allocations extend only by the requested amount.
-			SameAsRequested
-		}
+/// The strategy to use for extending the device memory arena.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ArenaExtendStrategy {
+	/// Subsequent memory allocations extend by larger amounts (multiplied by powers of two)
+	PowerOfTwo,
+	/// Memory allocations extend only by the requested amount.
+	SameAsRequested
+}
 
-		impl Default for ArenaExtendStrategy {
-			fn default() -> Self {
-				Self::PowerOfTwo
-			}
-		}
+impl Default for ArenaExtendStrategy {
+	fn default() -> Self {
+		Self::PowerOfTwo
+	}
+}
 
-		impl From<ArenaExtendStrategy> for String {
-			fn from(val: ArenaExtendStrategy) -> Self {
-				match val {
-					ArenaExtendStrategy::PowerOfTwo => "kNextPowerOfTwo".to_string(),
-					ArenaExtendStrategy::SameAsRequested => "kSameAsRequested".to_string()
-				}
-			}
+impl From<ArenaExtendStrategy> for String {
+	fn from(val: ArenaExtendStrategy) -> Self {
+		match val {
+			ArenaExtendStrategy::PowerOfTwo => "kNextPowerOfTwo".to_string(),
+			ArenaExtendStrategy::SameAsRequested => "kSameAsRequested".to_string()
 		}
+	}
+}
 
-		/// The type of search done for cuDNN convolution algorithms.
-		#[derive(Debug, Clone, PartialEq, Eq)]
-		pub enum CuDNNConvolutionAlgorithmSearch {
-			/// Exhaustive kernel search. Will spend more time and memory to find the most optimal kernel for this GPU.
-			/// This is the **default** value set by ONNX Runtime.
-			Exhaustive,
-			/// Heuristic kernel search. Will spend a small amount of time and memory to find an optimal kernel for this
-			/// GPU.
-			Heuristic,
-			/// Uses the default cuDNN kernels that may not be optimized for this GPU. **This is NOT the actual default
-			/// value set by ONNX Runtime, the default is set to `Exhaustive`.**
-			Default
-		}
+/// The type of search done for cuDNN convolution algorithms.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CuDNNConvolutionAlgorithmSearch {
+	/// Exhaustive kernel search. Will spend more time and memory to find the most optimal kernel for this GPU.
+	/// This is the **default** value set by ONNX Runtime.
+	Exhaustive,
+	/// Heuristic kernel search. Will spend a small amount of time and memory to find an optimal kernel for this
+	/// GPU.
+	Heuristic,
+	/// Uses the default cuDNN kernels that may not be optimized for this GPU. **This is NOT the actual default
+	/// value set by ONNX Runtime, the default is set to `Exhaustive`.**
+	Default
+}
 
-		impl Default for CuDNNConvolutionAlgorithmSearch {
-			fn default() -> Self {
-				Self::Exhaustive
-			}
-		}
+impl Default for CuDNNConvolutionAlgorithmSearch {
+	fn default() -> Self {
+		Self::Exhaustive
+	}
+}
 
-		impl From<CuDNNConvolutionAlgorithmSearch> for String {
-			fn from(val: CuDNNConvolutionAlgorithmSearch) -> Self {
-				match val {
-					CuDNNConvolutionAlgorithmSearch::Exhaustive => "EXHAUSTIVE".to_string(),
-					CuDNNConvolutionAlgorithmSearch::Heuristic => "HEURISTIC".to_string(),
-					CuDNNConvolutionAlgorithmSearch::Default => "DEFAULT".to_string()
-				}
-			}
+impl From<CuDNNConvolutionAlgorithmSearch> for String {
+	fn from(val: CuDNNConvolutionAlgorithmSearch) -> Self {
+		match val {
+			CuDNNConvolutionAlgorithmSearch::Exhaustive => "EXHAUSTIVE".to_string(),
+			CuDNNConvolutionAlgorithmSearch::Heuristic => "HEURISTIC".to_string(),
+			CuDNNConvolutionAlgorithmSearch::Default => "DEFAULT".to_string()
 		}
+	}
+}
 
-		/// Device options for the CUDA execution provider.
-		///
-		/// For low-VRAM devices running Stable Diffusion v1, it's best to use a float16 model with the following parameters:
-		/// ```ignore
-		/// CUDADeviceOptions {
-		/// 	memory_limit: Some(3000000000),
-		/// 	arena_extend_strategy: Some(ArenaExtendStrategy::SameAsRequested),
-		/// 	..Default::default()
-		/// }
-		/// ```
-		#[derive(Default, Debug, Clone, PartialEq, Eq)]
-		pub struct CUDADeviceOptions {
-			/// The strategy to use for extending the device memory arena. See [`ArenaExtendStrategy`] for more info.
-			pub arena_extend_strategy: Option<ArenaExtendStrategy>,
-			/// Per-session (aka per-model) memory limit. Models may use all available VRAM if a memory limit is not set.
-			/// VRAM usage may be higher than the memory limit (though typically not by much).
-			pub memory_limit: Option<usize>,
-			/// The type of search done for cuDNN convolution algorithms. See [`CuDNNConvolutionAlgorithmSearch`] for
-			/// more info.
-			///
-			/// **NOTE**: Setting this to any value other than `Exhaustive` seems to break float16 models!
-			pub cudnn_conv_algorithm_search: Option<CuDNNConvolutionAlgorithmSearch>
-		}
+/// Device options for the CUDA execution provider.
+///
+/// For low-VRAM devices running Stable Diffusion v1, it's best to use a float16 model with the following parameters:
+/// ```ignore
+/// CUDADeviceOptions {
+/// 	memory_limit: Some(3000000000),
+/// 	arena_extend_strategy: Some(ArenaExtendStrategy::SameAsRequested),
+/// 	..Default::default()
+/// }
+/// ```
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct CUDADeviceOptions {
+	/// The strategy to use for extending the device memory arena. See [`ArenaExtendStrategy`] for more info.
+	pub arena_extend_strategy: Option<ArenaExtendStrategy>,
+	/// Per-session (aka per-model) memory limit. Models may use all available VRAM if a memory limit is not set.
+	/// VRAM usage may be higher than the memory limit (though typically not by much).
+	pub memory_limit: Option<usize>,
+	/// The type of search done for cuDNN convolution algorithms. See [`CuDNNConvolutionAlgorithmSearch`] for
+	/// more info.
+	///
+	/// **NOTE**: Setting this to any value other than `Exhaustive` seems to break float16 models!
+	pub cudnn_conv_algorithm_search: Option<CuDNNConvolutionAlgorithmSearch>
+}
 
-		impl From<CUDADeviceOptions> for ExecutionProvider {
-			fn from(val: CUDADeviceOptions) -> Self {
-				let mut ep = ExecutionProvider::cuda();
-				if let Some(arena_extend_strategy) = val.arena_extend_strategy {
-					ep = ep.with("arena_extend_strategy", arena_extend_strategy);
-				}
-				if let Some(memory_limit) = val.memory_limit {
-					ep = ep.with("gpu_mem_limit", memory_limit.to_string());
-				}
-				if let Some(cudnn_conv_algorithm_search) = val.cudnn_conv_algorithm_search {
-					ep = ep.with("cudnn_conv_algo_search", cudnn_conv_algorithm_search);
-				}
-				ep
-			}
+impl From<CUDADeviceOptions> for ExecutionProvider {
+	fn from(val: CUDADeviceOptions) -> Self {
+		let mut ep = ExecutionProvider::cuda();
+		if let Some(arena_extend_strategy) = val.arena_extend_strategy {
+			ep = ep.with("arena_extend_strategy", arena_extend_strategy);
 		}
+		if let Some(memory_limit) = val.memory_limit {
+			ep = ep.with("gpu_mem_limit", memory_limit.to_string());
+		}
+		if let Some(cudnn_conv_algorithm_search) = val.cudnn_conv_algorithm_search {
+			ep = ep.with("cudnn_conv_algo_search", cudnn_conv_algorithm_search);
+		}
+		ep
 	}
 }
 
@@ -162,7 +156,7 @@ pub enum DiffusionDevice {
 	/// provider parameters. These options can be fine tuned for inference on low-VRAM GPUs
 	/// (~3 GB free seems to be a good number for the Stable Diffusion v1 float16 UNet at 512x512 resolution); see
 	/// [`CUDADeviceOptions`] for an example.
-	CUDA(usize, #[cfg(feature = "onnx")] Option<CUDADeviceOptions>),
+	CUDA(usize, Option<CUDADeviceOptions>),
 	/// Use NVIDIA TensorRT as a device. Requires an NVIDIA Kepler GPU or later.
 	TensorRT,
 	/// Use Windows DirectML as a device. Requires a DirectX 12 compatible GPU.
@@ -172,11 +166,9 @@ pub enum DiffusionDevice {
 	DirectML(usize),
 	/// Custom execution provider w/ options. Other execution providers have not been tested and may not work with some
 	/// models.
-	#[cfg(feature = "onnx")]
 	Custom(ExecutionProvider)
 }
 
-#[cfg(feature = "onnx")]
 impl From<DiffusionDevice> for ExecutionProvider {
 	fn from(value: DiffusionDevice) -> Self {
 		match value {
@@ -207,10 +199,8 @@ impl From<DiffusionDevice> for ExecutionProvider {
 #[derive(Debug, Clone)]
 pub struct DiffusionDeviceControl {
 	/// The device on which to place the Stable Diffusion variational autoencoder.
-	#[cfg(feature = "onnx")]
 	pub vae_encoder: DiffusionDevice,
 	/// The device on which to place the Stable Diffusion variational autoencoder decoder.
-	#[cfg(feature = "onnx")]
 	pub vae_decoder: DiffusionDevice,
 	/// The device on which to place the Stable Diffusion text encoder (CLIP).
 	pub text_encoder: DiffusionDevice,
@@ -238,9 +228,7 @@ impl DiffusionDeviceControl {
 	/// per model), NOT for the entire pipeline.
 	pub fn all(device: DiffusionDevice) -> Self {
 		Self {
-			#[cfg(feature = "onnx")]
 			vae_encoder: device.clone(),
-			#[cfg(feature = "onnx")]
 			vae_decoder: device.clone(),
 			text_encoder: device.clone(),
 			unet: device.clone(),

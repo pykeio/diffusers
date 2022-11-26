@@ -27,7 +27,7 @@ rand = "0.8"
 cfg-if = "1.0"
 
 GSL = { version = "6.0", optional = true }
-ort = { version = "1.13", optional = true, default-features = false, features = [ "half" ] }
+ort = { version = "1.13", default-features = false, features = [ "half" ] }
 
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
@@ -46,13 +46,12 @@ attohttpc = { version = "0.24", optional = true, default-features = false, featu
 tokio = { version = "1.0", features = [ "full" ] }
 
 [features]
-default = [ "common-schedulers", "onnx", "stable-diffusion", "hub", "hub-reqwest" ]
+default = [ "common-schedulers", "ort-copy-dylibs", "stable-diffusion", "hub", "hub-reqwest" ]
 
 tokenizers = [ "dep:tokenizers" ]
 
-onnx = [ "ort" ]
-onnx-cuda = [ "ort/cuda" ]
-onnx-copy-dylibs = [ "ort/copy-dylibs" ]
+ort-cuda = [ "ort/cuda" ]
+ort-copy-dylibs = [ "ort/copy-dylibs" ]
 
 hub-ureq = [ "dep:ureq" ]
 hub-awc = [ "dep:awc" ]

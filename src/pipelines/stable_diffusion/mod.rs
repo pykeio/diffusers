@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 
-use cfg_if::cfg_if;
 use image::DynamicImage;
 use ndarray::Array4;
 
 use crate::{DiffusionDeviceControl, Prompt};
+
+mod impl_onnx;
+pub use self::impl_onnx::*;
 
 /// Options for the Stable Diffusion pipeline.
 #[derive(Debug, Default, Clone)]
@@ -93,12 +95,5 @@ impl Default for StableDiffusionTxt2ImgOptions {
 			eta: None,
 			callback: None
 		}
-	}
-}
-
-cfg_if! {
-	if #[cfg(feature = "onnx")] {
-		mod impl_onnx;
-		pub use self::impl_onnx::*;
 	}
 }

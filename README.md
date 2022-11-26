@@ -27,7 +27,7 @@ If you plan to enable the `all-schedulers` or `scheduler-lms` feature, you will 
 [dependencies]
 pyke-diffusers = "0.1"
 # if you'd like to use CUDA:
-pyke-diffusers = { version = "0.1", features = [ "cuda" ] }
+pyke-diffusers = { version = "0.1", features = [ "ort-cuda" ] }
 ```
 
 The default features enable some commonly used schedulers and pipelines.
@@ -60,6 +60,4 @@ To convert a model from a HuggingFace `diffusers` model:
 Float16 models are faster on GPUs, but are **not hardware-independent** (due to an ONNX Runtime issue). Float16 models must be converted on the hardware they will be run on. Float32 models are hardware-independent, but are recommended only for x86 CPU inference or older NVIDIA GPUs.
 
 ### ONNX Runtime binaries
-On Windows (or other platforms), you may want to copy the ONNX Runtime dylibs to the target folder by enabling the `onnx-copy-dylibs` Cargo feature.
-
-When running the examples in this repo on Windows, you'll need to also *manually copy the dylibs from `target/debug/` to `target/debug/examples/`* on first run. You'll also need to copy the dylibs to `target/debug/deps/` if your project uses pyke Diffusers in a Cargo test.
+When running the examples in this repo on Windows, you'll need to *copy the `onnxruntime*` dylibs from `target/debug/` to `target/debug/examples/`* on first run. You'll also need to copy the dylibs to `target/debug/deps/` if your project uses pyke Diffusers in a Cargo test.
