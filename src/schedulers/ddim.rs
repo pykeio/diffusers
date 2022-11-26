@@ -1,4 +1,5 @@
 use ndarray::{s, Array1, Array4, ArrayView4};
+use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use rand::Rng;
 
 use super::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
@@ -164,7 +165,7 @@ impl DiffusionScheduler for DDIMScheduler {
 		self.timesteps = (timesteps + self.config.steps_offset).map(|f| *f as usize);
 	}
 
-	fn step<R: Rng + ?Sized>(&mut self, model_output: ArrayView4<'_, f32>, timestep: usize, sample: ArrayView4<'_, f32>, _: &mut R) -> SchedulerStepOutput {
+	fn step<R: Rng + ?Sized>(&mut self, model_output: ArrayView4<'_, f32>, timestep: usize, sample: ArrayView4<'_, f32>, rng: &mut R) -> SchedulerStepOutput {
 		const ETA: f32 = 0.0;
 		const USE_CLIPPED_MODEL_OUTPUT: bool = false;
 
@@ -200,12 +201,14 @@ impl DiffusionScheduler for DDIMScheduler {
 			model_output = (sample.to_owned() - alpha_prod_t.sqrt() * pred_original_sample.clone()) / beta_prod_t.sqrt();
 		}
 
-		let pred_sample_direction = (1.0 - alpha_prod_t_prev - std_dev_t.powi(2)).sqrt() * model_output;
+		let pred_sample_direction = (1.0 - alpha_prod_t_prev - std_dev_t.powi(2)).sqrt() * model_output.clone();
 
-		let prev_sample = alpha_prod_t_prev.sqrt() * pred_original_sample.clone() + pred_sample_direction;
+		let mut prev_sample = alpha_prod_t_prev.sqrt() * pred_original_sample.clone() + pred_sample_direction;
 
 		if ETA > 0.0 {
-			todo!();
+			let variance_noise = Array4::<f32>::random_using(model_output.raw_dim(), StandardNormal, rng);
+			let variance = self.get_variance(timestep, prev_timestep).sqrt() * ETA * variance_noise;
+			prev_sample = prev_sample + variance;
 		}
 
 		SchedulerStepOutput {
