@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use cfg_if::cfg_if;
 use image::DynamicImage;
 use ndarray::Array4;
@@ -5,7 +7,7 @@ use ndarray::Array4;
 use crate::{DiffusionDeviceControl, Prompt};
 
 /// Options for the Stable Diffusion pipeline.
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct StableDiffusionOptions {
 	/// A [`DiffusionDeviceControl`] object, mapping what devices to place each model on.
 	pub devices: DiffusionDeviceControl
@@ -41,7 +43,14 @@ pub enum StableDiffusionCallback {
 	Decoded(usize, Box<dyn Fn(usize, f32, Vec<DynamicImage>) -> bool>)
 }
 
+impl Debug for StableDiffusionCallback {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str("<StableDiffusionCallback>")
+	}
+}
+
 /// Options for the Stable Diffusion text-to-image pipeline.
+#[derive(Debug)]
 pub struct StableDiffusionTxt2ImgOptions {
 	/// The height of the image. Must be divisible by 8.
 	pub height: u32,

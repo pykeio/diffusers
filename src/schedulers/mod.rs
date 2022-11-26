@@ -32,16 +32,31 @@ cfg_if::cfg_if! {
 }
 
 /// A mapping from a beta range to a sequence of betas for stepping the model.
+#[derive(Debug, Clone, PartialEq)]
 pub enum BetaSchedule {
 	/// Linear beta schedule.
 	Linear,
-	/// Scaled linear beta schedule.
+	/// Scaled linear beta schedule for latent diffusion models.
 	ScaledLinear,
+	/// Glide cosine schedule
+	SquaredcosCapV2,
 	/// Pre-trained betas.
 	TrainedBetas(Array1<f32>)
 }
 
+/// Scheduler prediction type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchedulerPredictionType {
+	/// predict epsilon (noise)
+	Epsilon,
+	/// predict sample (data / `x0`)
+	Sample,
+	/// predict [v-objective](https://arxiv.org/abs/2202.00512)
+	VPrediction
+}
+
 /// The output returned by a scheduler's `step` function.
+#[derive(Clone)]
 pub struct SchedulerStepOutput {
 	pub(crate) prev_sample: Array4<f32>,
 	pub(crate) pred_original_sample: Option<Array4<f32>>,

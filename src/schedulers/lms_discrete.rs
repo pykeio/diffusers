@@ -88,6 +88,7 @@ impl LMSDiscreteScheduler {
 				betas.par_map_inplace(|f| *f = f.powi(2));
 				betas
 			}
+			_ => anyhow::bail!("{beta_schedule:?} not implemented for LMSDiscreteScheduler")
 		};
 
 		let mut alphas = betas.clone();

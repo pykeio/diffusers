@@ -21,7 +21,7 @@ pub use self::schedulers::*;
 cfg_if::cfg_if! {
 	if #[cfg(feature = "onnx")] {
 		/// The strategy to use for extending the device memory arena.
-		#[derive(Clone, PartialEq, Eq)]
+		#[derive(Debug, Clone, PartialEq, Eq)]
 		pub enum ArenaExtendStrategy {
 			/// Subsequent memory allocations extend by larger amounts (multiplied by powers of two)
 			PowerOfTwo,
@@ -45,7 +45,7 @@ cfg_if::cfg_if! {
 		}
 
 		/// The type of search done for cuDNN convolution algorithms.
-		#[derive(Clone, PartialEq, Eq)]
+		#[derive(Debug, Clone, PartialEq, Eq)]
 		pub enum CuDNNConvolutionAlgorithmSearch {
 			/// Exhaustive kernel search. Will spend more time and memory to find the most optimal kernel for this GPU.
 			Exhaustive,
@@ -73,7 +73,7 @@ cfg_if::cfg_if! {
 		}
 
 		/// Device options for the CUDA execution provider.
-		#[derive(Default, Clone, PartialEq, Eq)]
+		#[derive(Default, Debug, Clone, PartialEq, Eq)]
 		pub struct CUDADeviceOptions {
 			/// The strategy to use for extending the device memory arena. See [`ArenaExtendStrategy`] for more info.
 			pub arena_extend_strategy: Option<ArenaExtendStrategy>,
@@ -104,7 +104,7 @@ cfg_if::cfg_if! {
 }
 
 /// A device on which to place a diffusion model on.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DiffusionDevice {
 	/// Use the CPU as a device. This is the default device unless specified.
@@ -157,7 +157,7 @@ impl From<DiffusionDevice> for ExecutionProvider {
 ///
 /// For Stable Diffusion on GPUs with <6 GB VRAM, it may be favorable to place the text encoder, VAE decoder, and
 /// safety checker on the CPU so the much more intensive UNet can be placed on the GPU.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DiffusionDeviceControl {
 	/// The device on which to place the Stable Diffusion variational autoencoder.
 	#[cfg(feature = "onnx")]

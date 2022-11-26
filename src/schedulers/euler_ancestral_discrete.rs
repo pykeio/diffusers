@@ -67,6 +67,7 @@ impl EulerAncestralDiscreteScheduler {
 				betas.par_map_inplace(|f| *f = f.powi(2));
 				betas
 			}
+			_ => anyhow::bail!("{beta_schedule:?} not implemented for EulerAncestralDiscreteScheduler")
 		};
 
 		let alphas = 1.0 - betas;

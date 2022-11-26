@@ -10,7 +10,7 @@ cfg_if::cfg_if! {
 }
 
 /// Text prompt(s) used as input in diffusion pipelines.
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Prompt(pub(crate) Vec<String>);
 
 impl Deref for Prompt {
