@@ -10,11 +10,11 @@
 //! use std::sync::Arc;
 //!
 //! use pyke_diffusers::{
-//! 	EulerDiscreteScheduler, Ml2Environment, StableDiffusionOptions, StableDiffusionPipeline,
+//! 	EulerDiscreteScheduler, OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline,
 //! 	StableDiffusionTxt2ImgOptions
 //! };
 //!
-//! let environment = Arc::new(Ml2Environment::builder().build()?);
+//! let environment = Arc::new(OrtEnvironment::builder().build()?);
 //! let mut scheduler = EulerDiscreteScheduler::default();
 //! let pipeline =
 //! 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
@@ -42,9 +42,9 @@ pub mod schedulers;
 pub(crate) mod util;
 
 #[cfg(feature = "onnx")]
-pub use ml2::onnx::Environment as Ml2Environment;
+pub use ort::Environment as OrtEnvironment;
 #[cfg(feature = "onnx")]
-use ml2::onnx::ExecutionProvider;
+use ort::ExecutionProvider;
 
 pub use self::pipelines::*;
 pub use self::schedulers::*;

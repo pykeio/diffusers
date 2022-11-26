@@ -4,6 +4,16 @@ version = "0.1.0"
 rust-version = "1.62"
 edition = "2021"
 license = "Apache-2.0"
+include = [
+	"src/",
+	"examples/",
+	"scripts/",
+	"clippy.toml",
+	"LICENSE",
+	"README.md",
+	"requirements.txt",
+	"rustfmt.toml"
+]
 
 [dependencies]
 ndarray = { version = "0.15", features = [ "rayon" ] }
@@ -17,7 +27,7 @@ rand = "0.8"
 cfg-if = "1.0"
 
 GSL = { version = "6.0", optional = true }
-ml2 = { git = "https://github.com/allie-project/ml2.git", optional = true, default-features = false, features = [ "half" ] }
+ort = { version = "1.13", optional = true, default-features = false, features = [ "half" ] }
 
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
@@ -40,9 +50,9 @@ default = [ "common-schedulers", "onnx", "stable-diffusion", "hub", "hub-reqwest
 
 tokenizers = [ "dep:tokenizers" ]
 
-onnx = [ "ml2", "ml2/onnx" ]
-onnx-cuda = [ "ml2/onnxep-cuda" ]
-onnx-copy-dylibs = [ "ml2/onnx-copy-dylibs" ]
+onnx = [ "ort" ]
+onnx-cuda = [ "ort/cuda" ]
+onnx-copy-dylibs = [ "ort/copy-dylibs" ]
 
 hub-ureq = [ "dep:ureq" ]
 hub-awc = [ "dep:awc" ]
@@ -85,8 +95,8 @@ all-schedulers = [
 	"scheduler-heun"
 ]
 
-stable-diffusion = [ "dep:tokenizers" ]
-safe-latent-diffusion = [ "dep:tokenizers" ]
+stable-diffusion = [ "tokenizers" ]
+safe-latent-diffusion = [ "tokenizers" ]
 audio-diffusion = []
 
 __why_is_rust_analyzer_like_this = []

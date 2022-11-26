@@ -3,13 +3,13 @@
 use std::{cell::RefCell, fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
-use ml2::onnx::{
-	tensor::{FromArray, InputTensor, OrtOwnedTensor},
-	Environment, OrtResult, Session, SessionBuilder
-};
 use ndarray::{concatenate, Array1, Array2, Array4, ArrayD, Axis, IxDyn};
 use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use num_traits::ToPrimitive;
+use ort::{
+	tensor::{FromArray, InputTensor, OrtOwnedTensor},
+	Environment, OrtResult, Session, SessionBuilder
+};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use super::{StableDiffusionOptions, StableDiffusionTxt2ImgOptions};
@@ -26,11 +26,11 @@ use crate::{
 /// use std::sync::Arc;
 ///
 /// use pyke_diffusers::{
-/// 	EulerDiscreteScheduler, Ml2Environment, StableDiffusionOptions, StableDiffusionPipeline,
+/// 	EulerDiscreteScheduler, OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline,
 /// 	StableDiffusionTxt2ImgOptions
 /// };
 ///
-/// let environment = Arc::new(Ml2Environment::builder().build()?);
+/// let environment = Arc::new(OrtEnvironment::builder().build()?);
 /// let mut scheduler = EulerDiscreteScheduler::default();
 /// let pipeline =
 /// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;

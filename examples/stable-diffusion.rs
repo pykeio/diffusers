@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use ml2::onnx::Environment;
 use pyke_diffusers::{
-	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, StableDiffusionOptions, StableDiffusionPipeline,
-	StableDiffusionTxt2ImgOptions
+	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment, StableDiffusionOptions,
+	StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 
 fn main() -> anyhow::Result<()> {
-	let environment = Arc::new(Environment::builder().with_name("Stable Diffusion").build()?);
+	let environment = Arc::new(OrtEnvironment::builder().with_name("Stable Diffusion").build()?);
 	let mut scheduler = EulerDiscreteScheduler::default();
 	let pipeline = StableDiffusionPipeline::new(
 		&environment,

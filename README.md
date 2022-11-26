@@ -14,7 +14,7 @@ You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 - If using ROCm: **ROCm v5.2** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html)</sup>
 - If using DirectML: **DirectX 12 compatible GPU**, **Windows 10 v1903+** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)</sup>
 
-Only generic CPU, CUDA, and TensorRT have prebuilt binaries available. Other execution providers will require you to manually build them; see the ONNX Runtime docs for more info. Additionally, you'll need to [make `ml2` link to your custom-built binaries](https://github.com/allie-project/ml2#execution-providers).
+Only generic CPU, CUDA, and TensorRT have prebuilt binaries available. Other execution providers will require you to manually build them; see the ONNX Runtime docs for more info. Additionally, you'll need to [make `ort` link to your custom-built binaries](https://github.com/pykeio/ort#execution-providers).
 
 ### LMS notes
 > **Note**:
