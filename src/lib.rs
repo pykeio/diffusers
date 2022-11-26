@@ -4,6 +4,7 @@
 #![warn(rustdoc::all)]
 #![warn(clippy::correctness, clippy::suspicious, clippy::complexity, clippy::perf, clippy::style)]
 
+#[cfg(feature = "tokenizers")]
 #[doc(hidden)]
 pub mod clip;
 pub(crate) mod config;
@@ -11,6 +12,7 @@ pub mod pipelines;
 pub mod schedulers;
 pub(crate) mod util;
 
+#[cfg(feature = "onnx")]
 pub use ml2::onnx::Environment;
 #[cfg(feature = "onnx")]
 use ml2::onnx::ExecutionProvider;
