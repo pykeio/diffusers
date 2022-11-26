@@ -9,6 +9,7 @@ use ml2::onnx::{
 };
 use ndarray::{concatenate, Array1, Array2, Array4, ArrayD, Axis, IxDyn};
 use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
+use num_traits::ToPrimitive;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use super::{StableDiffusionOptions, StableDiffusionTxt2ImgOptions};
@@ -337,7 +338,7 @@ impl StableDiffusionPipeline {
 			let latent_model_input = scheduler.scale_model_input(latent_model_input.view(), *t);
 
 			let latent_model_input: ArrayD<f32> = latent_model_input.into_dyn();
-			let timestep: ArrayD<f32> = Array1::from_iter([*t]).into_dyn();
+			let timestep: ArrayD<f32> = Array1::from_iter([t.to_f32().unwrap()]).into_dyn();
 			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
 
 			let noise_pred = unet.run(vec![
@@ -356,14 +357,16 @@ impl StableDiffusionPipeline {
 				noise_pred = &noise_pred_uncond + options.guidance_scale * (noise_pred_text - &noise_pred_uncond);
 			}
 
-			let scheduler_output = scheduler.step(noise_pred.view(), *t, Some(i), latents.view(), &mut rng);
+			let scheduler_output = scheduler.step(noise_pred.view(), *t, latents.view(), &mut rng);
 			latents = scheduler_output.prev_sample().to_owned();
 
 			if let Some(callback) = options.callback.as_ref() {
 				let keep_going = match callback {
-					StableDiffusionCallback::Progress(every, callback) if i % every == 0 => callback(i, *t),
-					StableDiffusionCallback::Latents(every, callback) if i % every == 0 => callback(i, *t, latents.clone()),
-					StableDiffusionCallback::Decoded(every, callback) if i % every == 0 => callback(i, *t, self.decode_latents(latents.clone(), options)?),
+					StableDiffusionCallback::Progress(every, callback) if i % every == 0 => callback(i, t.to_f32().unwrap()),
+					StableDiffusionCallback::Latents(every, callback) if i % every == 0 => callback(i, t.to_f32().unwrap(), latents.clone()),
+					StableDiffusionCallback::Decoded(every, callback) if i % every == 0 => {
+						callback(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), options)?)
+					}
 					_ => true
 				};
 				if !keep_going {

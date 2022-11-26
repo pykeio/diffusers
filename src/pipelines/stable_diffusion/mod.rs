@@ -60,7 +60,7 @@ pub struct StableDiffusionTxt2ImgOptions {
 	/// strictly.
 	pub guidance_scale: f32,
 	/// The number of steps to take to generate the image. More steps typically yields higher quality images.
-	pub steps: u16,
+	pub steps: usize,
 	/// An optional seed to use when first generating noise. The same seed will produce the same image.
 	pub seed: Option<u64>,
 	/// Optional prompt(s) describing what the model should **not** generate in classifier-free guidance. Typically used

@@ -18,7 +18,7 @@ pub struct EulerDiscreteScheduler {
 	init_noise_sigma: f32,
 	timesteps: Array1<f32>,
 	num_train_timesteps: usize,
-	num_inference_steps: Option<u16>,
+	num_inference_steps: Option<usize>,
 	has_scale_input_been_called: bool
 }
 
@@ -106,6 +106,8 @@ impl EulerDiscreteScheduler {
 }
 
 impl DiffusionScheduler for EulerDiscreteScheduler {
+	type TimestepType = f32;
+
 	/// Scales the denoising model input by `(sigma**2 + 1) ** 0.5` to match the K-LMS algorithm.
 	///
 	/// # Panics
@@ -128,10 +130,10 @@ impl DiffusionScheduler for EulerDiscreteScheduler {
 		sample.to_owned() / (sigma.powi(2) + 1.0).sqrt()
 	}
 
-	fn set_timesteps(&mut self, num_inference_steps: u16) {
+	fn set_timesteps(&mut self, num_inference_steps: usize) {
 		self.num_inference_steps = Some(num_inference_steps);
 
-		let timesteps = Array1::linspace(0.0_f32, (self.num_train_timesteps - 1) as f32, num_inference_steps as usize)
+		let timesteps = Array1::linspace(0.0_f32, (self.num_train_timesteps - 1) as f32, num_inference_steps)
 			.slice(s![..;-1])
 			.to_owned();
 
@@ -153,14 +155,7 @@ impl DiffusionScheduler for EulerDiscreteScheduler {
 		self.timesteps = timesteps;
 	}
 
-	fn step<R: Rng + ?Sized>(
-		&mut self,
-		model_output: ArrayView4<'_, f32>,
-		timestep: f32,
-		step_index: Option<usize>,
-		sample: ArrayView4<'_, f32>,
-		rng: &mut R
-	) -> SchedulerStepOutput {
+	fn step<R: Rng + ?Sized>(&mut self, model_output: ArrayView4<'_, f32>, timestep: f32, sample: ArrayView4<'_, f32>, rng: &mut R) -> SchedulerStepOutput {
 		let s_churn = 0.0_f32;
 		let s_tmin = 0.0_f32;
 		let s_tmax = f32::INFINITY;
@@ -168,13 +163,12 @@ impl DiffusionScheduler for EulerDiscreteScheduler {
 
 		assert!(self.has_scale_input_been_called);
 
-		let step_index = step_index.unwrap_or_else(|| {
-			self.timesteps
-				.iter()
-				.position(|&p| p == timestep)
-				.with_context(|| format!("timestep out of this schedulers bounds: {timestep}"))
-				.unwrap()
-		});
+		let step_index = self
+			.timesteps
+			.iter()
+			.position(|&p| p == timestep)
+			.with_context(|| format!("timestep out of this schedulers bounds: {timestep}"))
+			.unwrap();
 
 		let sigma = self
 			.sigmas

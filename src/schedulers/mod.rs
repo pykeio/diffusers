@@ -10,6 +10,7 @@
 //! solution.
 
 use ndarray::{Array1, Array4, ArrayBase, ArrayView1, ArrayView4};
+use num_traits::ToPrimitive;
 use rand::Rng;
 
 cfg_if::cfg_if! {
@@ -103,21 +104,23 @@ impl SchedulerStepOutput {
 /// A scheduler to be used in diffusion pipelines.
 #[allow(clippy::len_without_is_empty)]
 pub trait DiffusionScheduler: Default + Clone {
+	/// Scheduler timestep type.
+	type TimestepType: Copy + Clone + ToPrimitive;
+
 	/// Ensures interchangeability with schedulers that need to scale the denoising model input depending on the
 	/// current timestep.
-	fn scale_model_input(&mut self, sample: ArrayView4<'_, f32>, timestep: f32) -> Array4<f32>;
+	fn scale_model_input(&mut self, sample: ArrayView4<'_, f32>, timestep: Self::TimestepType) -> Array4<f32>;
 
 	/// Sets the number of inference steps. This should be called before `step` to properly compute the sigmas and
 	/// timesteps.
-	fn set_timesteps(&mut self, num_inference_steps: u16);
+	fn set_timesteps(&mut self, num_inference_steps: usize);
 
 	/// Predict the sample at the previous timestep by reversing the SDE. Core function to propagate the diffusion
 	/// process from the learned model outputs (most often the predicted noise).
 	fn step<R: Rng + ?Sized>(
 		&mut self,
 		model_output: ArrayView4<'_, f32>,
-		timestep: f32,
-		step_index: Option<usize>,
+		timestep: Self::TimestepType,
 		sample: ArrayView4<'_, f32>,
 		rng: &mut R
 	) -> SchedulerStepOutput;
@@ -125,10 +128,10 @@ pub trait DiffusionScheduler: Default + Clone {
 	/// Adds noise to the given samples.
 	// NOTE: in huggingface diffusers, `timestep` is an array of shape `[batch_size]`, but all elements are identical
 	// in both the Stable Diffusion img2img and inpaint pipelines, so this was simplified to a single float
-	fn add_noise(&mut self, original_samples: ArrayView4<'_, f32>, noise: ArrayView4<'_, f32>, timestep: f32) -> Array4<f32>;
+	fn add_noise(&mut self, original_samples: ArrayView4<'_, f32>, noise: ArrayView4<'_, f32>, timestep: Self::TimestepType) -> Array4<f32>;
 
 	/// Returns the computed scheduler timesteps.
-	fn timesteps(&self) -> ArrayView1<'_, f32>;
+	fn timesteps(&self) -> ArrayView1<'_, Self::TimestepType>;
 
 	/// Returns the initial sigma noise value.
 	fn init_noise_sigma(&self) -> f32;

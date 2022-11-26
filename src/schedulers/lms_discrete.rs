@@ -20,7 +20,7 @@ pub struct LMSDiscreteScheduler {
 	init_noise_sigma: f32,
 	timesteps: Array1<f32>,
 	num_train_timesteps: usize,
-	num_inference_steps: Option<u16>,
+	num_inference_steps: Option<usize>,
 	has_scale_input_been_called: bool,
 	derivatives: Vec<Array4<f32>>
 }
@@ -174,6 +174,8 @@ impl LMSDiscreteScheduler {
 }
 
 impl DiffusionScheduler for LMSDiscreteScheduler {
+	type TimestepType = f32;
+
 	/// Scales the denoising model input by `(sigma**2 + 1) ** 0.5` to match the K-LMS algorithm.
 	///
 	/// # Panics
@@ -196,8 +198,8 @@ impl DiffusionScheduler for LMSDiscreteScheduler {
 		sample.to_owned() / (sigma.powi(2) + 1.0).sqrt()
 	}
 
-	fn set_timesteps(&mut self, num_inference_steps: u16) {
-		let timesteps = Array1::linspace(0.0, (self.num_train_timesteps - 1) as f32, num_inference_steps as usize)
+	fn set_timesteps(&mut self, num_inference_steps: usize) {
+		let timesteps = Array1::linspace(0.0, (self.num_train_timesteps - 1) as f32, num_inference_steps)
 			.slice(s![..;-1])
 			.to_owned();
 
@@ -220,25 +222,17 @@ impl DiffusionScheduler for LMSDiscreteScheduler {
 		self.derivatives = Vec::new();
 	}
 
-	fn step<R: Rng + ?Sized>(
-		&mut self,
-		model_output: ArrayView4<'_, f32>,
-		timestep: f32,
-		step_index: Option<usize>,
-		sample: ArrayView4<'_, f32>,
-		_rng: &mut R
-	) -> SchedulerStepOutput {
+	fn step<R: Rng + ?Sized>(&mut self, model_output: ArrayView4<'_, f32>, timestep: f32, sample: ArrayView4<'_, f32>, _rng: &mut R) -> SchedulerStepOutput {
 		assert!(self.has_scale_input_been_called);
 
 		let order = 4;
 
-		let step_index = step_index.unwrap_or_else(|| {
-			self.timesteps
-				.iter()
-				.position(|&p| p == timestep)
-				.with_context(|| format!("timestep out of this schedulers bounds: {timestep}"))
-				.unwrap()
-		});
+		let step_index = self
+			.timesteps
+			.iter()
+			.position(|&p| p == timestep)
+			.with_context(|| format!("timestep out of this schedulers bounds: {timestep}"))
+			.unwrap();
 
 		let sigma = self
 			.sigmas
