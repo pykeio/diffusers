@@ -10,6 +10,14 @@ cfg_if::cfg_if! {
 }
 
 /// Text prompt(s) used as input in diffusion pipelines.
+///
+/// Can be converted from one or more prompts:
+/// ```no_run
+/// # use pyke_diffusers::Prompt;
+/// let prompt: Prompt = "photo of a red fox".into();
+/// let prompts: Prompt = ["photo of a red fox", "photo of an Arctic fox"].into();
+/// let prompts: Prompt = vec!["photo of a red fox", "photo of an Arctic fox"].into();
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Prompt(pub(crate) Vec<String>);
 

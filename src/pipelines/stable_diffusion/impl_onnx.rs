@@ -21,6 +21,22 @@ use crate::{
 };
 
 /// A [Stable Diffusion](https://github.com/CompVis/stable-diffusion) pipeline.
+///
+/// ```ignore
+/// use std::sync::Arc;
+///
+/// use pyke_diffusers::{
+/// 	EulerDiscreteScheduler, Ml2Environment, StableDiffusionOptions, StableDiffusionPipeline,
+/// 	StableDiffusionTxt2ImgOptions
+/// };
+///
+/// let environment = Arc::new(Ml2Environment::builder().build()?);
+/// let mut scheduler = EulerDiscreteScheduler::default();
+/// let pipeline =
+/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+///
+/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+/// ```
 pub struct StableDiffusionPipeline {
 	environment: Arc<Environment>,
 	options: StableDiffusionOptions,
@@ -37,7 +53,10 @@ pub struct StableDiffusionPipeline {
 impl StableDiffusionPipeline {
 	/// Creates a new Stable Diffusion pipeline, loading models from `root`.
 	///
-	/// `environment` must be an [`ml2::onnx::Environment`]. Only one environment can be created per process.
+	/// ```ignore
+	/// let pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// ```
 	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: &StableDiffusionOptions) -> anyhow::Result<Self> {
 		let root: PathBuf = root.into();
 		let config: DiffusionPipeline = serde_json::from_reader(fs::read(root.join("diffusers.json"))?.as_slice())?;
@@ -134,8 +153,8 @@ impl StableDiffusionPipeline {
 	/// An additional [`StableDiffusionOptions`] parameter can be used to move models to another device.
 	///
 	/// ```ignore
-	/// let mut pipeline = StableDiffusionPipeline::new(&environment, "./sd1.4/", &StableDiffusionOptions::default())?;
-	/// pipeline = pipeline.replace("./sd1.5/", None)?;
+	/// let mut pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// pipeline = pipeline.replace("./waifu-diffusion-v1-3/", None)?;
 	/// ```
 	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<&StableDiffusionOptions>) -> anyhow::Result<Self> {
 		let new_root: PathBuf = new_root.into();
@@ -146,7 +165,7 @@ impl StableDiffusionPipeline {
 				inner
 			}
 			#[allow(unreachable_patterns)]
-			_ => anyhow::bail!("not a stable diffusion pipeline")
+			_ => anyhow::bail!("not a stable diffusion pipeline!")
 		};
 
 		let options = options.unwrap_or(&self.options);
@@ -295,11 +314,22 @@ impl StableDiffusionPipeline {
 	}
 
 	/// Generates images from given text prompt(s). Returns a vector of [`image::DynamicImage`]s, using float32 buffers.
-	/// In most cases, you'll want to convert it the images into RGB8 via `img.into_rgb8().`
+	/// In most cases, you'll want to convert the images into RGB8 via `img.clone().into_rgb8().`
 	///
 	/// `scheduler` must be a Stable Diffusion-compatible scheduler.
 	///
-	/// See [`StableDiffusionTxt2ImgOptions`] for configuration.
+	/// See [`StableDiffusionTxt2ImgOptions`] for additional configuration.
+	///
+	/// # Examples
+	///
+	/// Simple text-to-image:
+	/// ```ignore
+	/// let pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	///
+	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+	/// imgs[0].clone().into_rgb8().save("result.png")?;
+	/// ```
 	pub fn txt2img<S: DiffusionScheduler>(
 		&self,
 		prompt: impl Into<Prompt>,

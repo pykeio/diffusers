@@ -1,13 +1,17 @@
-//! The schedule functions, denoted Schedulers in the library take in the output of a trained model, a sample which the
-//! diffusion process is iterating on, and a timestep to return a denoised sample.
+//! The schedule functions, denoted *Schedulers* in the library, take in the output of a trained model, a sample which
+//! the diffusion process is iterating on, and a timestep, returning a denoised sample.
 //!
 //! * Schedulers define the methodology for iteratively adding noise to an image or for updating a sample based on model
 //! outputs.
 //!   - adding noise in different manners represent the algorithmic processes to train a diffusion model by adding noise
 //!     to images.
 //!   - for inference, the scheduler defines how to update a sample based on an output from a pretrained model.
-//! * Schedulers are often defined by a noise schedule and an update rule to solve the differential equation
+//! * Schedulers are often defined by a *noise schedule* and an *update rule* to solve the differential equation
 //! solution.
+//!
+//! Schedulers change how the output image forms. Some schedulers may produce higher quality results than others.
+//! In the case of Stable Diffusion v1, [`EulerDiscreteScheduler`] and [`EulerAncestralDiscreteScheduler`] are
+//! exceptionally creative and can produce high quality results in as few as 20 steps.
 
 use ndarray::{Array1, Array4, ArrayBase, ArrayView1, ArrayView4};
 use num_traits::ToPrimitive;

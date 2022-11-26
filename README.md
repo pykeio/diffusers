@@ -1,5 +1,5 @@
 <div align=center>
-    <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.png" width="75%" alt="pyke Diffusers">
+    <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.png" width="100%" alt="pyke Diffusers">
     <hr />
 </div>
 
@@ -44,7 +44,7 @@ let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusi
 imgs[0].clone().into_rgb8().save("result.png")?;
 ```
 
-See the docs for more detailed information & examples.
+See [the docs](https://docs.rs/pyke-diffusers) for more detailed information & examples.
 
 ### Converting models
 To convert a model from a HuggingFace `diffusers` model:
