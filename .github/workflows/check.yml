@@ -39,10 +39,10 @@ jobs:
     strategy:
       matrix:
         clippy:
-          - { args: '', key: 'empty' }
-          - { args: '--no-default-features', key: 'no-default' }
-          - { args: '--features onnx,stable-diffusion', key: 'sd-onnx' }
-          - { args: '--features onnx,hub', key: 'onnx-hub' }
+          - { args: '', key: 'default' }
+          - { args: '--features stable-diffusion', key: 'stable-diffusion' }
+          - { args: '--features all-schedulers', key: 'all-schedulers' }
+          - { args: '--features hub,hub-reqwest', key: 'hub' }
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -51,6 +51,10 @@ jobs:
           toolchain: nightly
           override: true
           components: clippy
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libgsl0-dev
       - name: Get current date
         run: echo "CURRENT_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
       - name: Cache Cargo state

@@ -46,7 +46,7 @@ attohttpc = { version = "0.24", optional = true, default-features = false, featu
 tokio = { version = "1.0", features = [ "full" ] }
 
 [features]
-default = [ "common-schedulers", "ort-copy-dylibs", "stable-diffusion", "hub", "hub-reqwest" ]
+default = [ "common-schedulers", "ort-copy-dylibs", "stable-diffusion" ]
 
 tokenizers = [ "dep:tokenizers" ]
 
