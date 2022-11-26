@@ -109,6 +109,10 @@ impl DDIMScheduler {
 			})
 			.collect::<Array1<_>>();
 
+		// At every step in DDIM, we are looking into the previous alphas_cumprod
+		// For the final step, there is no previous alphas_cumprod because we are already at 0
+		// `set_alpha_to_one` decides whether we set this parameter simply to one or whether we use the final alpha of the
+		// "non-previous" one
 		let final_alpha_cumprod = if config.set_alpha_to_one { 1.0 } else { alphas_cumprod[0] };
 
 		let timesteps = Array1::linspace(0.0, num_train_timesteps as f32 - 1.0, num_train_timesteps)
@@ -169,17 +173,19 @@ impl DiffusionScheduler for DDIMScheduler {
 		const ETA: f32 = 0.0;
 		const USE_CLIPPED_MODEL_OUTPUT: bool = false;
 
+		// 1. get previous step value (=t-1)
 		let prev_timestep = timestep as isize - (self.num_train_timesteps / self.num_inference_steps.unwrap()) as isize;
 
+		// 2. compute alphas, betas
 		let alpha_prod_t = self.alphas_cumprod[timestep];
 		let alpha_prod_t_prev = if prev_timestep >= 0 {
 			self.alphas_cumprod[prev_timestep as usize]
 		} else {
 			self.final_alpha_cumprod
 		};
-
 		let beta_prod_t = 1.0 - alpha_prod_t;
 
+		// 3. compute predicted original sample from predicted noise - also called "predicted x_0" of formula (12)
 		let mut model_output = model_output.to_owned();
 		let mut pred_original_sample = match self.prediction_type {
 			SchedulerPredictionType::Epsilon => (sample.to_owned() - beta_prod_t.sqrt() * model_output.clone()) / alpha_prod_t.sqrt(),
@@ -190,19 +196,25 @@ impl DiffusionScheduler for DDIMScheduler {
 			}
 		};
 
+		// 4. clip predicted x_0
 		if self.config.clip_sample {
 			pred_original_sample = pred_original_sample.map(|f| f.clamp(-1.0, 1.0));
 		}
 
+		// 5. compute variance: "sigma_t(η)" -> see formula (16)
+		// σ_t = sqrt((1 − α_t−1)/(1 − α_t)) * sqrt(1 − α_t/α_t−1)
 		let variance = self.get_variance(timestep, prev_timestep);
 		let std_dev_t = ETA * variance.sqrt();
 
 		if USE_CLIPPED_MODEL_OUTPUT {
+			// model_output is always re-derived from the clipped x_0 in Glide
 			model_output = (sample.to_owned() - alpha_prod_t.sqrt() * pred_original_sample.clone()) / beta_prod_t.sqrt();
 		}
 
+		// 6. compute direction pointing to x_t of formula (12)
 		let pred_sample_direction = (1.0 - alpha_prod_t_prev - std_dev_t.powi(2)).sqrt() * model_output.clone();
 
+		// 7. compute x_t without random noise of formula (12)
 		let mut prev_sample = alpha_prod_t_prev.sqrt() * pred_original_sample.clone() + pred_sample_direction;
 
 		if ETA > 0.0 {
@@ -219,9 +231,7 @@ impl DiffusionScheduler for DDIMScheduler {
 	}
 
 	fn add_noise(&mut self, original_samples: ArrayView4<'_, f32>, noise: ArrayView4<'_, f32>, timestep: usize) -> Array4<f32> {
-		let sqrt_alpha_prod = self.alphas_cumprod[timestep].sqrt();
-		let sqrt_one_minus_alpha_prod = (1.0 - self.alphas_cumprod[timestep]).sqrt();
-		sqrt_alpha_prod * original_samples.to_owned() + sqrt_one_minus_alpha_prod * noise.to_owned()
+		self.alphas_cumprod[timestep].sqrt() * original_samples.to_owned() + (1.0 - self.alphas_cumprod[timestep]).sqrt() * noise.to_owned()
 	}
 
 	fn timesteps(&self) -> ndarray::ArrayView1<'_, usize> {
