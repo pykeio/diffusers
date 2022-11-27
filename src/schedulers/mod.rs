@@ -47,6 +47,12 @@ cfg_if::cfg_if! {
 		pub use self::ddpm::*;
 	}
 }
+cfg_if::cfg_if! {
+	if #[cfg(feature = "scheduler-dpm-solver")] {
+		mod dpm_solver;
+		pub use self::dpm_solver::*;
+	}
+}
 
 /// Create a beta schedule that discretizes the given alpha_t_bar function, which defines the cumulative product of
 /// `(1-beta)` over time from `t = [0,1]`.

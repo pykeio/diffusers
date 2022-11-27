@@ -18,6 +18,7 @@ include = [
 [dependencies]
 ndarray = { version = "0.15", features = [ "rayon" ] }
 ndarray-rand = "0.14"
+ndarray-stats = { version = "0.5", optional = true }
 rayon = "1.5"
 num-traits = "0.2"
 anyhow = "1.0"
@@ -66,16 +67,14 @@ scheduler-karras-ve = []
 scheduler-pndm = []
 scheduler-sde-ve = []
 scheduler-sde-vp = []
-scheduler-dpm2 = []
-scheduler-dpm2-ancestral = []
+scheduler-dpm-solver = [ "dep:ndarray-stats" ]
 scheduler-euler = []
 scheduler-euler-ancestral = []
 scheduler-heun = []
 common-schedulers = [
 	"scheduler-ddim",
 	"scheduler-ddpm",
-	"scheduler-dpm2",
-	"scheduler-dpm2-ancestral",
+	"scheduler-dpm-solver",
 	"scheduler-euler",
 	"scheduler-euler-ancestral"
 ]
@@ -87,8 +86,7 @@ all-schedulers = [
 	"scheduler-pndm",
 	"scheduler-sde-ve",
 	"scheduler-sde-vp",
-	"scheduler-dpm2",
-	"scheduler-dpm2-ancestral",
+	"scheduler-dpm-solver",
 	"scheduler-euler",
 	"scheduler-euler-ancestral",
 	"scheduler-heun"
