@@ -41,6 +41,12 @@ cfg_if::cfg_if! {
 		pub use self::ddim::*;
 	}
 }
+cfg_if::cfg_if! {
+	if #[cfg(feature = "scheduler-ddpm")] {
+		mod ddpm;
+		pub use self::ddpm::*;
+	}
+}
 
 /// Create a beta schedule that discretizes the given alpha_t_bar function, which defines the cumulative product of
 /// `(1-beta)` over time from `t = [0,1]`.
@@ -67,6 +73,8 @@ pub enum BetaSchedule {
 	ScaledLinear,
 	/// Glide cosine schedule
 	SquaredcosCapV2,
+	/// GeoDiff sigmoid schedule
+	Sigmoid,
 	/// Pre-trained betas.
 	TrainedBetas(Array1<f32>)
 }

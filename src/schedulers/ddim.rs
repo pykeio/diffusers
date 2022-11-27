@@ -95,7 +95,8 @@ impl DDIMScheduler {
 				betas.par_map_inplace(|f| *f = f.powi(2));
 				betas
 			}
-			BetaSchedule::SquaredcosCapV2 => betas_for_alpha_bar(num_train_timesteps, 0.999)
+			BetaSchedule::SquaredcosCapV2 => betas_for_alpha_bar(num_train_timesteps, 0.999),
+			_ => anyhow::bail!("{beta_schedule:?} not implemented for DDIMScheduler")
 		};
 
 		let alphas = 1.0 - betas;
