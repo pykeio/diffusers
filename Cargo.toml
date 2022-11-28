@@ -65,12 +65,12 @@ scheduler-ddim = []
 scheduler-ddpm = []
 scheduler-karras-ve = []
 scheduler-pndm = []
+scheduler-plms = [ "scheduler-pndm" ]
 scheduler-sde-ve = []
 scheduler-sde-vp = []
 scheduler-dpm-solver = [ "dep:ndarray-stats" ]
 scheduler-euler = []
 scheduler-euler-ancestral = []
-scheduler-heun = []
 common-schedulers = [
 	"scheduler-ddim",
 	"scheduler-ddpm",
@@ -88,12 +88,10 @@ all-schedulers = [
 	"scheduler-sde-vp",
 	"scheduler-dpm-solver",
 	"scheduler-euler",
-	"scheduler-euler-ancestral",
-	"scheduler-heun"
+	"scheduler-euler-ancestral"
 ]
 
 stable-diffusion = [ "tokenizers" ]
-safe-latent-diffusion = [ "tokenizers" ]
-audio-diffusion = []
+safe-stable-diffusion = [ "tokenizers" ]
 
 __why_is_rust_analyzer_like_this = []
