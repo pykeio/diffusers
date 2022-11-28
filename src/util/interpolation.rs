@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use ndarray::ArrayView1;
 
 pub struct InterpolationAccelerator {
