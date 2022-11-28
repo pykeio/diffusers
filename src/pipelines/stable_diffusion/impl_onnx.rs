@@ -392,10 +392,10 @@ impl StableDiffusionPipeline {
 
 			if let Some(callback) = options.callback.as_ref() {
 				let keep_going = match callback {
-					StableDiffusionCallback::Progress(every, callback) if i % every == 0 => callback(i, t.to_f32().unwrap()),
-					StableDiffusionCallback::Latents(every, callback) if i % every == 0 => callback(i, t.to_f32().unwrap(), latents.clone()),
-					StableDiffusionCallback::Decoded(every, callback) if i % every == 0 => {
-						callback(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), options)?)
+					StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
+					StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
+					StableDiffusionCallback::Decoded { frequency, cb } if i % frequency == 0 => {
+						cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), options)?)
 					}
 					_ => true
 				};

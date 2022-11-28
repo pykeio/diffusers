@@ -18,31 +18,34 @@ pub struct StableDiffusionOptions {
 /// Describes a function to be called on each step of the pipeline.
 pub enum StableDiffusionCallback {
 	/// A simple callback to be used for e.g. reporting progress updates.
-	///
-	/// The first value describes how frequently to call this callback (3 = every 3 steps).
-	///
-	/// Function Parameters:
-	/// - **`step`** (usize): The current step number.
-	/// - **`timestep`** (f32): This step's timestep.
-	Progress(usize, Box<dyn Fn(usize, f32) -> bool>),
+	Progress {
+		/// Describes how frequently to call this callback (3 = every 3 steps).
+		frequency: usize,
+		/// Function Parameters:
+		/// - **`step`** (usize): The current step number.
+		/// - **`timestep`** (f32): This step's timestep.
+		cb: Box<dyn Fn(usize, f32) -> bool>
+	},
 	/// A callback to receive this step's latents.
-	///
-	/// The first value describes how frequently to call this callback (3 = every 3 steps).
-	///
-	/// Function Parameters:
-	/// - **`step`** (usize): The current step number.
-	/// - **`timestep`** (f32): This step's timestep.
-	/// - **`latents`** (`Array4<f32>`): Scheduler latent outputs for this step.
-	Latents(usize, Box<dyn Fn(usize, f32, Array4<f32>) -> bool>),
+	Latents {
+		/// Describes how frequently to call this callback (3 = every 3 steps).
+		frequency: usize,
+		/// Function Parameters:
+		/// - **`step`** (usize): The current step number.
+		/// - **`timestep`** (f32): This step's timestep.
+		/// - **`latents`** (`Array4<f32>`): Scheduler latent outputs for this step.
+		cb: Box<dyn Fn(usize, f32, Array4<f32>) -> bool>
+	},
 	/// A callback to receive this step's decoded latents, to be used for e.g. showing image progress visually.
-	///
-	/// The first value describes how frequently to call this callback (3 = every 3 steps).
-	///
-	/// Function Parameters:
-	/// - **`step`** (usize): The current step number.
-	/// - **`timestep`** (f32): This step's timestep.
-	/// - **`image`** (`Vec<DynamicImage>`): Vector of decoded images for this step.
-	Decoded(usize, Box<dyn Fn(usize, f32, Vec<DynamicImage>) -> bool>)
+	Decoded {
+		/// Describes how frequently to call this callback (3 = every 3 steps).
+		frequency: usize,
+		/// Function Parameters:
+		/// - **`step`** (usize): The current step number.
+		/// - **`timestep`** (f32): This step's timestep.
+		/// - **`image`** (`Vec<DynamicImage>`): Vector of decoded images for this step.
+		cb: Box<dyn Fn(usize, f32, Vec<DynamicImage>) -> bool>
+	}
 }
 
 impl Debug for StableDiffusionCallback {
@@ -76,8 +79,6 @@ pub struct StableDiffusionTxt2ImgOptions {
 	/// to produce safe outputs, e.g. `negative_prompt: Some("gore, violence, blood".into())`. Must have the same
 	/// number of prompts as the 'positive' prompt input.
 	pub negative_prompt: Option<Prompt>,
-	/// eta parameter of the DDIM scheduler.
-	pub eta: Option<f32>,
 	/// An optional callback to call every `n` steps in the generation process. Can be used to log or display progress,
 	/// see [`StableDiffusionCallback`] for more details.
 	pub callback: Option<StableDiffusionCallback>
@@ -92,7 +93,6 @@ impl Default for StableDiffusionTxt2ImgOptions {
 			steps: 50,
 			seed: None,
 			negative_prompt: None,
-			eta: None,
 			callback: None
 		}
 	}
