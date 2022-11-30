@@ -2,12 +2,12 @@ name: Check
 on:
   push:
     paths:
-      - '.github/workflows/lint-and-format.yml'
+      - '.github/workflows/check.yml'
       - 'src/**/*.rs'
       - 'rustfmt.toml'
   pull_request:
     paths:
-      - '.github/workflows/lint-and-format.yml'
+      - '.github/workflows/check.yml'
       - 'src/**/*.rs'
       - 'rustfmt.toml'
 concurrency:
