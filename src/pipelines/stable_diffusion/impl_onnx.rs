@@ -26,12 +26,12 @@ use crate::{
 /// use std::sync::Arc;
 ///
 /// use pyke_diffusers::{
-/// 	EulerDiscreteScheduler, OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline,
+/// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline,
 /// 	StableDiffusionTxt2ImgOptions
 /// };
 ///
 /// let environment = Arc::new(OrtEnvironment::builder().build()?);
-/// let mut scheduler = EulerDiscreteScheduler::default();
+/// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default();
 /// let pipeline =
 /// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
 ///

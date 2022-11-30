@@ -3,7 +3,7 @@ use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use rand::Rng;
 
 use super::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
-use crate::SchedulerPredictionType;
+use crate::{SchedulerOptimizedDefaults, SchedulerPredictionType};
 
 /// Additional configuration for the [`DDIMScheduler`].
 #[derive(Debug, Clone)]
@@ -44,9 +44,9 @@ impl Default for DDIMScheduler {
 impl Default for DDIMSchedulerConfig {
 	fn default() -> Self {
 		Self {
-			clip_sample: false,
-			set_alpha_to_one: false,
-			steps_offset: 1
+			clip_sample: true,
+			set_alpha_to_one: true,
+			steps_offset: 0
 		}
 	}
 }
@@ -245,5 +245,25 @@ impl DiffusionScheduler for DDIMScheduler {
 
 	fn len(&self) -> usize {
 		self.num_train_timesteps
+	}
+}
+
+impl SchedulerOptimizedDefaults for DDIMScheduler {
+	fn stable_diffusion_v1_optimized_default() -> anyhow::Result<Self>
+	where
+		Self: Sized
+	{
+		Self::new(
+			1000,
+			0.00085,
+			0.012,
+			&BetaSchedule::ScaledLinear,
+			&SchedulerPredictionType::Epsilon,
+			Some(DDIMSchedulerConfig {
+				clip_sample: false,
+				set_alpha_to_one: false,
+				steps_offset: 1
+			})
+		)
 	}
 }

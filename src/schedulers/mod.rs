@@ -179,3 +179,11 @@ pub trait DiffusionScheduler: Default + Clone {
 	/// Returns the number of train timesteps.
 	fn len(&self) -> usize;
 }
+
+/// Implements functions returning an instance of this scheduler with parameters optimized for certain models.
+pub trait SchedulerOptimizedDefaults: DiffusionScheduler {
+	/// Creates an instance of this scheduler with parameters optimized for Stable Diffusion v1.
+	fn stable_diffusion_v1_optimized_default() -> anyhow::Result<Self>
+	where
+		Self: Sized;
+}

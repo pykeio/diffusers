@@ -34,17 +34,20 @@ The default features enable some commonly used schedulers and pipelines.
 
 ## Usage
 ```rust
-use pyke_diffusers::{Environment, EulerDiscreteScheduler, StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions};
+use pyke_diffusers::{
+    Environment, EulerDiscreteScheduler, SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline,
+    StableDiffusionTxt2ImgOptions
+};
 
 let environment = Arc::new(Environment::builder().build()?);
-let mut scheduler = EulerDiscreteScheduler::default();
+let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default();;
 let pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5", &StableDiffusionOptions::default())?;
 
 let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
 imgs[0].clone().into_rgb8().save("result.png")?;
 ```
 
-See [the docs](https://docs.rs/pyke-diffusers) for more detailed information & examples.
+See the [examples folder](https://github.com/pykeio/diffusers/tree/main/examples) for complete examples and [the docs](https://docs.rs/pyke-diffusers) for more detailed information.
 
 ### Converting models
 To convert a model from a HuggingFace `diffusers` model:

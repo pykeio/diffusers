@@ -4,7 +4,7 @@ use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use rand::Rng;
 
 use super::{BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
-use crate::util::interpolation::LinearInterpolatorAccelerated;
+use crate::{util::interpolation::LinearInterpolatorAccelerated, SchedulerOptimizedDefaults};
 
 /// Ancestral sampling with Euler method steps.
 ///
@@ -224,5 +224,14 @@ impl DiffusionScheduler for EulerAncestralDiscreteScheduler {
 
 	fn len(&self) -> usize {
 		self.num_train_timesteps
+	}
+}
+
+impl SchedulerOptimizedDefaults for EulerAncestralDiscreteScheduler {
+	fn stable_diffusion_v1_optimized_default() -> anyhow::Result<Self>
+	where
+		Self: Sized
+	{
+		Self::new(1000, 0.00085, 0.012, &BetaSchedule::ScaledLinear)
 	}
 }

@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use pyke_diffusers::{
-	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment, StableDiffusionOptions,
-	StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
+	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults,
+	StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 
 fn main() -> anyhow::Result<()> {
 	let environment = Arc::new(OrtEnvironment::builder().with_name("Stable Diffusion").build()?);
-	let mut scheduler = EulerDiscreteScheduler::default();
+	let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 	let pipeline = StableDiffusionPipeline::new(
 		&environment,
 		"./stable-diffusion-v1-5/",

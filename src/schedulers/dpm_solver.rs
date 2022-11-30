@@ -3,7 +3,7 @@ use ndarray::{s, Array1, Array4, ArrayView4};
 use rand::Rng;
 
 use super::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
-use crate::SchedulerPredictionType;
+use crate::{SchedulerOptimizedDefaults, SchedulerPredictionType};
 
 /// The algorithm type for the solver.
 ///
@@ -394,5 +394,29 @@ impl DiffusionScheduler for DPMSolverMultistepScheduler {
 
 	fn len(&self) -> usize {
 		self.num_train_timesteps
+	}
+}
+
+impl SchedulerOptimizedDefaults for DPMSolverMultistepScheduler {
+	fn stable_diffusion_v1_optimized_default() -> anyhow::Result<Self>
+	where
+		Self: Sized
+	{
+		Self::new(
+			1000,
+			0.00085,
+			0.012,
+			&BetaSchedule::ScaledLinear,
+			&SchedulerPredictionType::Epsilon,
+			Some(DPMSolverMultistepSchedulerConfig {
+				solver_order: 2,
+				thresholding: false,
+				dynamic_thresholding_ratio: 0.995,
+				sample_max_value: 1.0,
+				algorithm_type: DPMSolverAlgorithmType::DPMSolverPlusPlus,
+				solver_type: DPMSolverType::Midpoint,
+				lower_order_final: true
+			})
+		)
 	}
 }
