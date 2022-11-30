@@ -42,7 +42,6 @@ jobs:
           - { args: '', key: 'default' }
           - { args: '--features stable-diffusion', key: 'stable-diffusion' }
           - { args: '--features all-schedulers', key: 'all-schedulers' }
-          - { args: '--features hub,hub-reqwest', key: 'hub' }
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
