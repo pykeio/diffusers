@@ -34,6 +34,7 @@ parser.add_argument('hf_path', type=Path, help='Path to the HuggingFace model to
 parser.add_argument('out_path', type=Path, help='Output path.')
 parser.add_argument('-f16', '--fp16', action='store_true', help='Whether or not the input model is in float16 format.')
 parser.add_argument('--no-collate', action='store_true', help='Do not collate UNet weights into a single file.')
+parser.add_argument('--skip-safety-checker', action='store_true', help='Skips converting the safety checker.')
 parser.add_argument('--override-unet-sample-size', type=int, required=False, help='Override the sample size when converting the UNet.')
 args = parser.parse_args()
 
@@ -393,7 +394,7 @@ with torch.no_grad():
 		"safety-checker": None
 	}
 
-	if os.path.exists(hf_path / 'safety_checker'):
+	if os.path.exists(hf_path / 'safety_checker') and not args.skip_safety_checker:
 		safety_checker_path = convert_safety_checker(vae_sample_size, vae_out_channels)
 		model_config['safety-checker'] = { "path": safety_checker_path.relative_to(out_path).as_posix() }
 		model_config['hashes']['safety-checker'] = hashfile(safety_checker_path, hexdigest=True)
