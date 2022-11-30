@@ -35,6 +35,8 @@ parser.add_argument('out_path', type=Path, help='Output path.')
 parser.add_argument('-f16', '--fp16', action='store_true', help='Whether or not the input model is in float16 format.')
 parser.add_argument('--no-collate', action='store_true', help='Do not collate UNet weights into a single file.')
 parser.add_argument('--skip-safety-checker', action='store_true', help='Skips converting the safety checker.')
+parser.add_argument('-S', '--simplify-small-models', action='store_true', help='Run onnx-simplifier on the VAE and text encoder for a slight speed boost. Requires `pip install onnxsim` and ~6 GB of free RAM.')
+parser.add_argument('--simplify-unet', action='store_true', help='Run onnx-simplifier on the UNet. Requires `pip install onnxsim` and an unholy amount of free RAM, probably not worth it.')
 parser.add_argument('--override-unet-sample-size', type=int, required=False, help='Override the sample size when converting the UNet.')
 args = parser.parse_args()
 
@@ -385,6 +387,27 @@ with torch.no_grad():
 	model_config['text-encoder'] = { "path": text_encoder_path.relative_to(out_path).as_posix() }
 	model_config['unet'] = { "path": unet_path.relative_to(out_path).as_posix() }
 	model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
+
+	if args.simplify_small_models or args.simplify_unet:
+		from onnxsim import simplify
+
+		def simplify_model(model_path: Path):
+			model = onnx.load(str(model_path))
+			model_opt, check = simplify(model)
+			assert check, f"failed to validate simplified model at {model_path}"
+			del model
+			onnx.save(model_opt, str(model_path))
+			del model_opt
+			gc.collect()
+
+		with yaspin(text='Converting safety checker', spinner=spinner):
+			if args.simplify_small_models:
+				simplify_model(text_encoder_path)
+				simplify_model(vae_encoder_path)
+				simplify_model(vae_decoder_path)
+			
+			if args.simplify_unet:
+				simplify_model(unet_path)
 
 	model_config['hashes'] = {
 		"text-encoder": hashfile(text_encoder_path, hexdigest=True),
