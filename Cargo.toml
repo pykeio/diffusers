@@ -4,6 +4,8 @@ version = "0.1.0"
 rust-version = "1.62"
 edition = "2021"
 license = "Apache-2.0"
+description = "modular Rust library for optimized Stable Diffusion inference 🔮"
+repository = "https://github.com/pykeio/diffusers"
 include = [
 	"src/",
 	"examples/",
