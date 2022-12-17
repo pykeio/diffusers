@@ -32,12 +32,14 @@ root = Path(os.path.dirname(os.path.realpath(__file__))).parent
 parser = ArgumentParser(prog='hf2pyke', description='Converts HuggingFace Diffusers models to pyke Diffusers models')
 parser.add_argument('hf_path', type=Path, help='Path to the HuggingFace model to convert.')
 parser.add_argument('out_path', type=Path, help='Output path.')
-parser.add_argument('-f16', '--fp16', action='store_true', help='Whether or not the input model is in float16 format.')
+parser.add_argument('-H', '--fp16', action='store_true', help='Convert all models to float16. Saves disk space, memory, and boosts speed on GPUs with little quality loss.')
+parser.add_argument('--fp16-unet', action='store_true', help='Only convert the UNet to float16. Can be beneficial when only the UNet is placed on GPU.')
 parser.add_argument('--no-collate', action='store_true', help='Do not collate UNet weights into a single file.')
 parser.add_argument('--skip-safety-checker', action='store_true', help='Skips converting the safety checker.')
 parser.add_argument('-S', '--simplify-small-models', action='store_true', help='Run onnx-simplifier on the VAE and text encoder for a slight speed boost. Requires `pip install onnxsim` and ~6 GB of free RAM.')
-parser.add_argument('--simplify-unet', action='store_true', help='Run onnx-simplifier on the UNet. Requires `pip install onnxsim` and an unholy amount of free RAM, probably not worth it.')
+parser.add_argument('--simplify-unet', action='store_true', help='Run onnx-simplifier on the UNet. Requires `pip install onnxsim` and an unholy amount of free RAM (>24 GB), probably not worth it.')
 parser.add_argument('--override-unet-sample-size', type=int, required=False, help='Override the sample size when converting the UNet.')
+parser.add_argument('-O', '--opset', type=int, required=False, default=15, help='The ONNX opset version models will be output with.')
 args = parser.parse_args()
 
 def collect_garbage():
@@ -105,9 +107,9 @@ model_config: Dict[str, Any] = {
 	'framework': 'onnx'
 }
 
-OPSET = 15
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 MODEL_DTYPE = torch.float16 if args.fp16 else torch.float32
+UNET_DTYPE = torch.float16 if args.fp16_unet else MODEL_DTYPE
 IO_DTYPE = torch.float32
 
 @torch.inference_mode()
@@ -127,7 +129,7 @@ def onnx_export(
 		output_names=output_names,
 		dynamic_axes=dynamic_axes,
 		do_constant_folding=True,
-		opset_version=OPSET
+		opset_version=args.opset
 	)
 
 class UNet2DConditionModelIOWrapper(UNet2DConditionModel):
@@ -137,9 +139,9 @@ class UNet2DConditionModelIOWrapper(UNet2DConditionModel):
 		timestep: torch.Tensor,
 		encoder_hidden_states: torch.Tensor
 	) -> Tuple:
-		sample = sample.to(dtype=MODEL_DTYPE)
+		sample = sample.to(dtype=UNET_DTYPE)
 		timestep = timestep.to(dtype=torch.long)
-		encoder_hidden_states = encoder_hidden_states.to(dtype=MODEL_DTYPE)
+		encoder_hidden_states = encoder_hidden_states.to(dtype=UNET_DTYPE)
 
 		sample = UNet2DConditionModel.forward(self, sample, timestep, encoder_hidden_states, return_dict=True).sample # type: ignore
 		return (sample.to(dtype=IO_DTYPE),)
@@ -173,7 +175,7 @@ class SafetyCheckerIOWrapper(StableDiffusionSafetyChecker):
 T = TypeVar('T')
 
 @torch.inference_mode()
-def load_efficient(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorch_model.bin') -> T:
+def load_efficient(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorch_model.bin', dtype = MODEL_DTYPE) -> T:
 	with accelerate.init_empty_weights():
 		model = cls.from_config( # type: ignore
 			config_path=root / 'config.json',
@@ -182,7 +184,7 @@ def load_efficient(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorc
 
 	accelerate.load_checkpoint_and_dispatch(model, root / checkpoint_name, device_map='auto')
 
-	model = model.to(dtype=MODEL_DTYPE, device=DEVICE)
+	model = model.to(dtype=dtype, device=DEVICE)
 	model.eval()
 	return model
 
@@ -222,7 +224,7 @@ def convert_text_encoder() -> Tuple[Path, int, int]:
 
 @yaspin(text='Converting UNet', spinner=spinner)
 def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
-	unet = load_efficient(UNet2DConditionModelIOWrapper, hf_path / 'unet')
+	unet = load_efficient(UNet2DConditionModelIOWrapper, hf_path / 'unet', dtype=UNET_DTYPE)
 
 	if isinstance(unet.config.attention_head_dim, int): # type: ignore
 		slice_size = unet.config.attention_head_dim // 2 # type: ignore
@@ -400,13 +402,14 @@ with torch.no_grad():
 			del model_opt
 			gc.collect()
 
-		with yaspin(text='Converting safety checker', spinner=spinner):
+		with yaspin(text='Simplifying models', spinner=spinner):
 			if args.simplify_small_models:
 				simplify_model(text_encoder_path)
 				simplify_model(vae_encoder_path)
 				simplify_model(vae_decoder_path)
 			
 			if args.simplify_unet:
+				print('--simplify-unet: I hope you know what you\'re doing.')
 				simplify_model(unet_path)
 
 	model_config['hashes'] = {
