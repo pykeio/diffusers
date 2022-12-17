@@ -47,7 +47,13 @@ let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusi
 imgs[0].clone().into_rgb8().save("result.png")?;
 ```
 
-See the [examples folder](https://github.com/pykeio/diffusers/tree/main/examples) for complete examples and [the docs](https://docs.rs/pyke-diffusers) for more detailed information.
+### Examples
+`pyke-diffusers` includes an interactive Stable Diffusion demo. Run it with:
+```
+$ cargo run --example stable-diffusion-interactive --features ort-cuda -- ~/path/to/stable-diffusion/
+```
+
+See [`examples/`](https://github.com/pykeio/diffusers/tree/main/examples) for more examples and [the docs](https://docs.rs/pyke-diffusers) for more detailed information..
 
 ### Converting models
 pyke Diffusers currently supports Stable Diffusion v1, v2, and its derivatives.
@@ -63,6 +69,8 @@ To convert a model from a HuggingFace `diffusers` model:
     - To convert a float16 model from disk: `python3 scripts/hf2pyke.py --fp16 ~/stable-diffusion-v1-5-fp16/ ~/pyke-diffusers/sd15-fp16/`
 
 Float16 models are faster on GPUs, but are **not hardware-independent** (due to an ONNX Runtime issue). Float16 models must be converted on the hardware they will be run on. Float32 models are hardware-independent, but are recommended only for x86 CPU inference or older NVIDIA GPUs.
+
+`hf2pyke` supports a few options to improve performance or ORT execution provider compatibility. See `python3 scripts/hf2pyke.py --help`.
 
 ### ONNX Runtime binaries
 When running the examples in this repo on Windows, you'll need to *copy the `onnxruntime*` dylibs from `target/debug/` to `target/debug/examples/`* on first run. You'll also need to copy the dylibs to `target/debug/deps/` if your project uses pyke Diffusers in a Cargo test.
