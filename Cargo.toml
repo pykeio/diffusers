@@ -42,6 +42,9 @@ requestty = "0.5"
 kdam = "0.3"
 show-image = { version = "0.13", features = [ "image" ] }
 
+[package.metadata.docs.rs]
+features = [ "ort/disable-build-script" ]
+
 [features]
 default = [ "common-schedulers", "ort-copy-dylibs", "stable-diffusion" ]
 
