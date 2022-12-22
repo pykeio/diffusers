@@ -67,7 +67,7 @@ impl<'x, 'y> LinearInterpolatorAccelerated<'x, 'y> {
 		Self {
 			x,
 			y,
-			acc: InterpolationAccelerator::new()
+			acc: InterpolationAccelerator::default()
 		}
 	}
 

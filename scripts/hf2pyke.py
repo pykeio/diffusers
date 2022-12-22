@@ -9,6 +9,7 @@ import posixpath
 import shutil
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 import warnings
+import sys
 
 import accelerate
 from diffusers.models.unet_2d_condition import UNet2DConditionModel
@@ -97,10 +98,10 @@ if not os.path.exists(args.hf_path):
 model_index = json.load(open(hf_path / 'model_index.json'))
 if not model_index['_diffusers_version']:
 	print('repo is not a HuggingFace diffusers model')
-	exit(1)
+	sys.exit(1)
 if model_index['_class_name'] != 'StableDiffusionPipeline':
 	print('repo is not a Stable Diffusion model; only Stable Diffusion models are supported')
-	exit(1)
+	sys.exit(1)
 
 model_config: Dict[str, Any] = {
 	'pipeline': 'stable-diffusion',
@@ -331,7 +332,7 @@ def convert_vae(unet_sample_size: int) -> Tuple[Path, Path, int, int]:
 def convert_safety_checker(vae_sample_size: int, vae_out_channels: int) -> Path:
 	with accelerate.init_empty_weights():
 		safety_checker = SafetyCheckerIOWrapper(CLIPConfig.from_json_file(hf_path / 'safety_checker' / 'config.json')) # type: ignore
-	
+
 	accelerate.load_checkpoint_and_dispatch(safety_checker, hf_path / 'safety_checker' / 'pytorch_model.bin', device_map='auto')
 
 	safety_checker = safety_checker.to(dtype=MODEL_DTYPE, device=DEVICE)
@@ -396,7 +397,10 @@ with torch.no_grad():
 		def simplify_model(model_path: Path):
 			model = onnx.load(str(model_path))
 			model_opt, check = simplify(model)
-			assert check, f"failed to validate simplified model at {model_path}"
+			if not check:
+				print(f"failed to validate simplified model at {model_path}")
+				sys.exit(1)
+
 			del model
 			onnx.save(model_opt, str(model_path))
 			del model_opt
@@ -407,7 +411,7 @@ with torch.no_grad():
 				simplify_model(text_encoder_path)
 				simplify_model(vae_encoder_path)
 				simplify_model(vae_decoder_path)
-			
+
 			if args.simplify_unet:
 				print('--simplify-unet: I hope you know what you\'re doing.')
 				simplify_model(unet_path)
@@ -426,6 +430,6 @@ with torch.no_grad():
 		model_config['hashes']['safety-checker'] = hashfile(safety_checker_path, hexdigest=True)
 
 	with open(out_path / 'diffusers.json', 'w') as f:
-		f.write(json.dumps(model_config))
+		json.dump(model_config, f)
 
 cprint(f'✨ Your model is ready! {str(out_path)}')

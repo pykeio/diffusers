@@ -6,7 +6,7 @@ use pyke_diffusers::{
 	StableDiffusionCallback, StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 use requestty::Question;
-use show_image::{ImageInfo, ImageView};
+use show_image::{ImageInfo, ImageView, WindowOptions};
 
 #[show_image::main]
 fn main() -> anyhow::Result<()> {
@@ -58,7 +58,7 @@ fn main() -> anyhow::Result<()> {
 				)?
 			};
 
-			let window = show_image::create_window(prompt, Default::default())?;
+			let window = show_image::create_window(prompt, WindowOptions::default())?;
 			let image = imgs[0].clone().into_rgb8();
 			let image = ImageView::new(ImageInfo::rgb8(512, 512), &image);
 			window.set_image("result", image)?;

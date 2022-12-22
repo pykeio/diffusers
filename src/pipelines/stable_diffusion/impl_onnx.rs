@@ -156,7 +156,7 @@ impl StableDiffusionPipeline {
 	/// let mut pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
 	/// pipeline = pipeline.replace("./waifu-diffusion-v1-3/", None)?;
 	/// ```
-	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<&StableDiffusionOptions>) -> anyhow::Result<Self> {
+	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<StableDiffusionOptions>) -> anyhow::Result<Self> {
 		let new_root: PathBuf = new_root.into();
 		let new_config: DiffusionPipeline = serde_json::from_reader(fs::read(new_root.join("diffusers.json"))?.as_slice())?;
 		let new_config: StableDiffusionConfig = match new_config {
@@ -168,7 +168,7 @@ impl StableDiffusionPipeline {
 			_ => anyhow::bail!("not a stable diffusion pipeline!")
 		};
 
-		let options = options.unwrap_or(&self.options);
+		let options = options.unwrap_or_else(|| self.options.clone());
 
 		if self.config.hashes.unet != new_config.hashes.unet {
 			std::mem::drop(self.unet);
@@ -230,7 +230,7 @@ impl StableDiffusionPipeline {
 				.transpose()?;
 		}
 
-		self.options = options.clone();
+		self.options.clone_from(&options);
 		self.config = new_config;
 
 		Ok(self)
