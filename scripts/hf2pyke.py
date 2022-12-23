@@ -192,7 +192,7 @@ def load_efficient(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorc
 @yaspin(text='Converting text encoder', spinner=spinner)
 def convert_text_encoder() -> Tuple[Path, int, int]:
 	text_encoder: CLIPTextModelIOWrapper = CLIPTextModelIOWrapper.from_pretrained(hf_path / 'text_encoder') # type: ignore
-	text_encoder = text_encoder.to(dtype=MODEL_DTYPE, device=DEVICE)
+	text_encoder = text_encoder.to(dtype=MODEL_DTYPE, device=DEVICE) # type: ignore
 	text_encoder.eval()
 
 	num_tokens = text_encoder.config.max_position_embeddings
@@ -371,10 +371,12 @@ with torch.no_grad():
 
 	if os.path.exists(hf_path / 'feature_extractor'):
 		feature_extractor = json.load(open(hf_path / 'feature_extractor' / 'preprocessor_config.json'))
+		size = feature_extractor['size']
+		crop = feature_extractor['crop_size']
 		model_config['feature-extractor'] = {
 			'resample': feature_extractor['resample'],
-			'size': feature_extractor['size'],
-			'crop': [ feature_extractor['crop_size'], feature_extractor['crop_size'] ],
+			'size': size['shortest_edge'] if isinstance(size, dict) else size,
+			'crop': [ crop['width'], crop['height'] ] if isinstance(crop, dict) else crop,
 			'crop-center': feature_extractor['do_center_crop'],
 			'rgb': feature_extractor['do_convert_rgb'],
 			'normalize': feature_extractor['do_normalize'],
