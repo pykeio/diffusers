@@ -9,6 +9,5 @@ onnxruntime
 scipy
 spacy
 termcolor
-torch>=1.12
 transformers>=4.21.0
 yaspin

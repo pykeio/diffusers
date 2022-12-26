@@ -60,7 +60,9 @@ pyke Diffusers currently supports Stable Diffusion v1, v2, and its derivatives.
 
 To convert a model from a HuggingFace `diffusers` model:
 1. Create and activate a virtual environment.
-2. Install script requirements: `python3 -m pip install -r requirements.txt`
+2. Install Python requirements:
+    - install torch with CUDA: `python3 -m pip install torch --extra-index-url https://download.pytorch.org/whl/cu116`
+    - install dependencies: `python3 -m pip install -r requirements.txt`
 3. If you are converting a model directly from HuggingFace, log in to HuggingFace Hub with `huggingface-cli login` - this can be skipped if you have the model on disk
 5. Convert your model with `scripts/hf2pyke.py`:
     - To convert a float32 model from HF (recommended for CPU inference): `python3 scripts/hf2pyke.py runwayml/stable-diffusion-v1-5 ~/pyke-diffusers-sd15/`
