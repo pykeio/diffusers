@@ -376,7 +376,7 @@ with torch.no_grad():
 		model_config['feature-extractor'] = {
 			'resample': feature_extractor['resample'],
 			'size': size['shortest_edge'] if isinstance(size, dict) else size,
-			'crop': [ crop['width'], crop['height'] ] if isinstance(crop, dict) else crop,
+			'crop': [ crop['width'], crop['height'] ] if isinstance(crop, dict) else [ crop, crop ],
 			'crop-center': feature_extractor['do_center_crop'],
 			'rgb': feature_extractor['do_convert_rgb'],
 			'normalize': feature_extractor['do_normalize'],
