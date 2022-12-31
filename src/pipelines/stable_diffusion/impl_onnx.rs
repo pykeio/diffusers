@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{cell::RefCell, fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
@@ -47,6 +45,7 @@ pub struct StableDiffusionPipeline {
 	tokenizer: Option<CLIPStandardTokenizer>,
 	unet: RefCell<Session>,
 	safety_checker: Option<RefCell<Session>>,
+	#[allow(dead_code)]
 	feature_extractor: Option<RefCell<()>>
 }
 
