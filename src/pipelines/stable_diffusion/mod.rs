@@ -7,8 +7,8 @@ use crate::{DiffusionDeviceControl, Prompt};
 
 mod impl_onnx;
 pub use self::impl_onnx::*;
-mod impl_onnx_memory_efficient;
-pub use self::impl_onnx_memory_efficient::*;
+mod impl_onnx_memory_optimized;
+pub use self::impl_onnx_memory_optimized::*;
 
 /// Options for the Stable Diffusion pipeline.
 #[derive(Debug, Default, Clone)]
