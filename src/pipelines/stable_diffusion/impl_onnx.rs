@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fs, path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
 use ndarray::{concatenate, Array1, Array2, Array4, ArrayD, Axis, IxDyn};
@@ -39,14 +39,14 @@ pub struct StableDiffusionPipeline {
 	environment: Arc<Environment>,
 	options: StableDiffusionOptions,
 	config: StableDiffusionConfig,
-	vae_encoder: Option<RefCell<Session>>,
-	vae_decoder: RefCell<Session>,
-	text_encoder: Option<RefCell<Session>>,
+	vae_encoder: Option<Session>,
+	vae_decoder: Session,
+	text_encoder: Option<Session>,
 	tokenizer: Option<CLIPStandardTokenizer>,
-	unet: RefCell<Session>,
-	safety_checker: Option<RefCell<Session>>,
+	unet: Session,
+	safety_checker: Option<Session>,
 	#[allow(dead_code)]
-	feature_extractor: Option<RefCell<()>>
+	feature_extractor: Option<()>
 }
 
 impl StableDiffusionPipeline {
@@ -86,12 +86,10 @@ impl StableDiffusionPipeline {
 		let text_encoder = config
 			.text_encoder
 			.as_ref()
-			.map(|text_encoder| -> OrtResult<RefCell<Session>> {
-				Ok(RefCell::new(
-					SessionBuilder::new(environment)?
-						.with_execution_providers([options.devices.text_encoder.clone().into()])?
-						.with_model_from_file(root.join(text_encoder.path.clone()))?
-				))
+			.map(|text_encoder| -> OrtResult<Session> {
+				SessionBuilder::new(environment)?
+					.with_execution_providers([options.devices.text_encoder.clone().into()])?
+					.with_model_from_file(root.join(text_encoder.path.clone()))
 			})
 			.transpose()?;
 
@@ -99,36 +97,28 @@ impl StableDiffusionPipeline {
 			.vae
 			.encoder
 			.as_ref()
-			.map(|path| -> OrtResult<RefCell<Session>> {
-				Ok(RefCell::new(
-					SessionBuilder::new(environment)?
-						.with_execution_providers([options.devices.vae_encoder.clone().into()])?
-						.with_model_from_file(root.join(path))?
-				))
+			.map(|path| -> OrtResult<Session> {
+				SessionBuilder::new(environment)?
+					.with_execution_providers([options.devices.vae_encoder.clone().into()])?
+					.with_model_from_file(root.join(path))
 			})
 			.transpose()?;
 
-		let vae_decoder = RefCell::new(
-			SessionBuilder::new(environment)?
-				.with_execution_providers([options.devices.vae_decoder.clone().into()])?
-				.with_model_from_file(root.join(config.vae.decoder.clone()))?
-		);
+		let vae_decoder = SessionBuilder::new(environment)?
+			.with_execution_providers([options.devices.vae_decoder.clone().into()])?
+			.with_model_from_file(root.join(config.vae.decoder.clone()))?;
 
-		let unet = RefCell::new(
-			SessionBuilder::new(environment)?
-				.with_execution_providers([options.devices.unet.clone().into()])?
-				.with_model_from_file(root.join(config.unet.path.clone()))?
-		);
+		let unet = SessionBuilder::new(environment)?
+			.with_execution_providers([options.devices.unet.clone().into()])?
+			.with_model_from_file(root.join(config.unet.path.clone()))?;
 
 		let safety_checker = config
 			.safety_checker
 			.as_ref()
-			.map(|safety_checker| -> OrtResult<RefCell<Session>> {
-				Ok(RefCell::new(
-					SessionBuilder::new(environment)?
-						.with_execution_providers([options.devices.safety_checker.clone().into()])?
-						.with_model_from_file(root.join(safety_checker.path.clone()))?
-				))
+			.map(|safety_checker| -> OrtResult<Session> {
+				SessionBuilder::new(environment)?
+					.with_execution_providers([options.devices.safety_checker.clone().into()])?
+					.with_model_from_file(root.join(safety_checker.path.clone()))
 			})
 			.transpose()?;
 
@@ -171,33 +161,27 @@ impl StableDiffusionPipeline {
 
 		if self.config.hashes.unet != new_config.hashes.unet {
 			std::mem::drop(self.unet);
-			self.unet = RefCell::new(
-				SessionBuilder::new(&self.environment)?
-					.with_execution_providers([self.options.devices.unet.clone().into()])?
-					.with_model_from_file(new_root.join(new_config.unet.path.clone()))?
-			);
+			self.unet = SessionBuilder::new(&self.environment)?
+				.with_execution_providers([self.options.devices.unet.clone().into()])?
+				.with_model_from_file(new_root.join(new_config.unet.path.clone()))?;
 		}
 		if self.config.hashes.text_encoder != new_config.hashes.text_encoder {
 			std::mem::drop(self.text_encoder);
 			self.text_encoder = new_config
 				.text_encoder
 				.as_ref()
-				.map(|text_encoder| -> OrtResult<RefCell<Session>> {
-					Ok(RefCell::new(
-						SessionBuilder::new(&self.environment)?
-							.with_execution_providers([options.devices.text_encoder.clone().into()])?
-							.with_model_from_file(new_root.join(text_encoder.path.clone()))?
-					))
+				.map(|text_encoder| -> OrtResult<Session> {
+					SessionBuilder::new(&self.environment)?
+						.with_execution_providers([options.devices.text_encoder.clone().into()])?
+						.with_model_from_file(new_root.join(text_encoder.path.clone()))
 				})
 				.transpose()?
 		}
 		if self.config.hashes.vae_decoder != new_config.hashes.vae_decoder {
 			std::mem::drop(self.vae_decoder);
-			self.vae_decoder = RefCell::new(
-				SessionBuilder::new(&self.environment)?
-					.with_execution_providers([options.devices.vae_decoder.clone().into()])?
-					.with_model_from_file(new_root.join(new_config.vae.decoder.clone()))?
-			);
+			self.vae_decoder = SessionBuilder::new(&self.environment)?
+				.with_execution_providers([options.devices.vae_decoder.clone().into()])?
+				.with_model_from_file(new_root.join(new_config.vae.decoder.clone()))?;
 		}
 		if self.config.hashes.vae_encoder != new_config.hashes.vae_encoder {
 			std::mem::drop(self.vae_encoder);
@@ -205,12 +189,10 @@ impl StableDiffusionPipeline {
 				.vae
 				.encoder
 				.as_ref()
-				.map(|path| -> OrtResult<RefCell<Session>> {
-					Ok(RefCell::new(
-						SessionBuilder::new(&self.environment)?
-							.with_execution_providers([options.devices.vae_encoder.clone().into()])?
-							.with_model_from_file(new_root.join(path))?
-					))
+				.map(|path| -> OrtResult<Session> {
+					SessionBuilder::new(&self.environment)?
+						.with_execution_providers([options.devices.vae_encoder.clone().into()])?
+						.with_model_from_file(new_root.join(path))
 				})
 				.transpose()?;
 		}
@@ -219,12 +201,10 @@ impl StableDiffusionPipeline {
 			self.safety_checker = new_config
 				.safety_checker
 				.as_ref()
-				.map(|safety_checker| -> OrtResult<RefCell<Session>> {
-					Ok(RefCell::new(
-						SessionBuilder::new(&self.environment)?
-							.with_execution_providers([options.devices.safety_checker.clone().into()])?
-							.with_model_from_file(new_root.join(safety_checker.path.clone()))?
-					))
+				.map(|safety_checker| -> OrtResult<Session> {
+					SessionBuilder::new(&self.environment)?
+						.with_execution_providers([options.devices.safety_checker.clone().into()])?
+						.with_model_from_file(new_root.join(safety_checker.path.clone()))
 				})
 				.transpose()?;
 		}
@@ -258,11 +238,10 @@ impl StableDiffusionPipeline {
 			}
 		}
 
-		let mut text_encoder = self
+		let text_encoder = self
 			.text_encoder
 			.as_ref()
-			.ok_or_else(|| anyhow::anyhow!("text encoder required for text-based generation"))?
-			.borrow_mut();
+			.ok_or_else(|| anyhow::anyhow!("text encoder required for text-based generation"))?;
 		let text_input_ids: Vec<i32> = text_input_ids.into_iter().flatten().collect();
 		let text_input_ids = Array2::from_shape_vec((batch_size, tokenizer.len()), text_input_ids)?.into_dyn();
 		let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
@@ -295,12 +274,11 @@ impl StableDiffusionPipeline {
 	pub fn decode_latents(&self, mut latents: Array4<f32>, options: &StableDiffusionTxt2ImgOptions) -> anyhow::Result<Vec<DynamicImage>> {
 		latents = 1.0 / 0.18215 * latents;
 
-		let mut vae_decoder = self.vae_decoder.borrow_mut();
 		let latent_vae_input: ArrayD<f32> = latents.into_dyn();
 		let mut images = Vec::new();
 		for latent_chunk in latent_vae_input.axis_iter(Axis(0)) {
 			let latent_chunk = latent_chunk.to_owned().insert_axis(Axis(0));
-			let image = vae_decoder.run(vec![InputTensor::from_array(latent_chunk)])?;
+			let image = self.vae_decoder.run(vec![InputTensor::from_array(latent_chunk)])?;
 			let image: OrtOwnedTensor<'_, f32, IxDyn> = image[0].try_extract()?;
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
 			let f_image = f_image.permuted_axes([0, 2, 3, 1]).map(|f| (f / 2.0 + 0.5).clamp(0.0, 1.0));
@@ -356,8 +334,6 @@ impl StableDiffusionPipeline {
 		scheduler.set_timesteps(steps);
 		latents *= scheduler.init_noise_sigma();
 
-		let mut unet = self.unet.borrow_mut();
-
 		for (i, t) in scheduler.timesteps().to_owned().indexed_iter() {
 			let latent_model_input = if do_classifier_free_guidance {
 				concatenate![Axis(0), latents, latents]
@@ -370,7 +346,7 @@ impl StableDiffusionPipeline {
 			let timestep: ArrayD<f32> = Array1::from_iter([t.to_f32().unwrap()]).into_dyn();
 			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
 
-			let noise_pred = unet.run(vec![
+			let noise_pred = self.unet.run(vec![
 				InputTensor::from_array(latent_model_input),
 				InputTensor::from_array(timestep),
 				InputTensor::from_array(encoder_hidden_states),

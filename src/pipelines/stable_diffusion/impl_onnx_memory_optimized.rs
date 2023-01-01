@@ -136,7 +136,7 @@ impl StableDiffusionMemoryOptimizedPipeline {
 			}
 		}
 
-		let mut text_encoder = self
+		let text_encoder = self
 			.load_text_encoder()?
 			.ok_or_else(|| anyhow::anyhow!("text encoder required for text-based generation"))?;
 		let text_input_ids: Vec<i32> = text_input_ids.into_iter().flatten().collect();
@@ -171,7 +171,7 @@ impl StableDiffusionMemoryOptimizedPipeline {
 	pub fn decode_latents(&self, mut latents: Array4<f32>, options: &StableDiffusionTxt2ImgOptions) -> anyhow::Result<Vec<DynamicImage>> {
 		latents = 1.0 / 0.18215 * latents;
 
-		let mut vae_decoder = self.load_vae_decoder()?;
+		let vae_decoder = self.load_vae_decoder()?;
 		let latent_vae_input: ArrayD<f32> = latents.into_dyn();
 		let mut images = Vec::new();
 		for latent_chunk in latent_vae_input.axis_iter(Axis(0)) {
@@ -233,7 +233,7 @@ impl StableDiffusionMemoryOptimizedPipeline {
 		latents *= scheduler.init_noise_sigma();
 
 		{
-			let mut unet = self.load_unet()?;
+			let unet = self.load_unet()?;
 
 			for (i, t) in scheduler.timesteps().to_owned().indexed_iter() {
 				let latent_model_input = if do_classifier_free_guidance {
