@@ -18,6 +18,7 @@ from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionS
 from huggingface_hub import snapshot_download # type: ignore
 from imohash import hashfile
 import onnx
+from onnxruntime.quantization import quantize_dynamic, QuantType
 from termcolor import cprint
 import torch
 from transformers import CLIPTextModel, CLIPTokenizerFast
@@ -39,8 +40,9 @@ parser.add_argument('--no-collate', action='store_true', help='Do not collate UN
 parser.add_argument('--skip-safety-checker', action='store_true', help='Skips converting the safety checker.')
 parser.add_argument('-S', '--simplify-small-models', action='store_true', help='Run onnx-simplifier on the VAE and text encoder for a slight speed boost. Requires `pip install onnxsim` and ~6 GB of free RAM.')
 parser.add_argument('--simplify-unet', action='store_true', help='Run onnx-simplifier on the UNet. Requires `pip install onnxsim` and an unholy amount of free RAM (>24 GB), probably not worth it.')
-parser.add_argument('--override-unet-sample-size', type=int, required=False, help='Override the sample size when converting the UNet.')
-parser.add_argument('-O', '--opset', type=int, required=False, default=15, help='The ONNX opset version models will be output with.')
+parser.add_argument('--override-unet-sample-size', type=int, help='Override the sample size when converting the UNet.')
+parser.add_argument('-O', '--opset', type=int, default=15, help='The ONNX opset version models will be output with.')
+parser.add_argument('-q', '--quantize', type=str, help='Output path.')
 args = parser.parse_args()
 
 def collect_garbage():
@@ -389,6 +391,30 @@ with torch.no_grad():
 	unet_path, unet_sample_size = convert_unet(num_tokens, text_hidden_size)
 	vae_encoder_path, vae_decoder_path, vae_sample_size, vae_out_channels = convert_vae(unet_sample_size)
 
+	if args.quantize is not None:
+		def quantize_model(model_path: Path, signed: bool = False):
+			out_path = model_path.with_stem(model_path.stem + '.quant')
+			quantize_dynamic(
+				model_path,
+				out_path,
+				per_channel=True,
+				reduce_range=True,
+				weight_type=QuantType.QInt8 if signed else QuantType.QUInt8
+			)
+			os.remove(model_path)
+			os.rename(out_path, model_path)
+			
+			collect_garbage()
+
+		with yaspin(text='Quantizing models', spinner=spinner):
+			letter: str
+			path: Path
+			for letter, path in [('u', unet_path), ('t', text_encoder_path), ('v', vae_decoder_path)]:
+				if letter.upper() in args.quantize:
+					quantize_model(path, True)
+				elif letter in args.quantize:
+					quantize_model(path, False)
+
 	model_config['text-encoder'] = { "path": text_encoder_path.relative_to(out_path).as_posix() }
 	model_config['unet'] = { "path": unet_path.relative_to(out_path).as_posix() }
 	model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
@@ -406,7 +432,7 @@ with torch.no_grad():
 			del model
 			onnx.save(model_opt, str(model_path))
 			del model_opt
-			gc.collect()
+			collect_garbage()
 
 		with yaspin(text='Simplifying models', spinner=spinner):
 			if args.simplify_small_models:
