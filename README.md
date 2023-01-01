@@ -5,6 +5,17 @@
 
 pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretrained diffusion model inference to generate images, videos, or audio, using [ONNX Runtime](https://onnxruntime.ai/) as a backend for extremely optimized generation on both CPU & GPU.
 
+- [Prerequisites](#prerequisites)
+  * [LMS notes](#lms-notes)
+- [Installation](#installation)
+- [Usage](#usage)
+  * [Examples](#examples)
+  * [Converting models](#converting-models)
+  * [ONNX Runtime binaries](#onnx-runtime-binaries)
+  * [CUDA and other execution providers](#cuda-and-other-execution-providers)
+  * [Low memory usage](#low-memory-usage)
+    + [Quantization](#quantization)
+
 ## Prerequisites
 You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 
@@ -68,11 +79,38 @@ To convert a model from a HuggingFace `diffusers` model:
     - To convert a float32 model from HF (recommended for CPU inference): `python3 scripts/hf2pyke.py runwayml/stable-diffusion-v1-5 ~/pyke-diffusers-sd15/`
     - To convert a float32 model from disk: `python3 scripts/hf2pyke.py ~/stable-diffusion-v1-5/ ~/pyke-diffusers-sd15/`
     - To convert a float16 model from HF (recommended for GPU inference): `python3 scripts/hf2pyke.py --fp16 runwayml/stable-diffusion-v1-5@fp16 ~/pyke-diffusers-sd15-fp16/`
-    - To convert a float16 model from disk: `python3 scripts/hf2pyke.py --fp16 ~/stable-diffusion-v1-5-fp16/ ~/pyke-diffusers/sd15-fp16/`
+    - To convert a float16 model from disk: `python3 scripts/hf2pyke.py --fp16 ~/stable-diffusion-v1-5-fp16/ ~/pyke-diffusers-sd15-fp16/`
 
-Float16 models are faster on GPUs, but are **not hardware-independent** (due to an ONNX Runtime issue). Float16 models must be converted on the hardware they will be run on. Float32 models are hardware-independent, but are recommended only for x86 CPU inference or older NVIDIA GPUs.
+float16 models are faster on some GPUs and use less memory. However, it should be noted that, if you are using float16 models for GPU inference, **they must be converted on the hardware they will be run on** due to an ONNX Runtime bug. CPUs using float16 models should not have this issue however.
 
 `hf2pyke` supports a few options to improve performance or ORT execution provider compatibility. See `python3 scripts/hf2pyke.py --help`.
 
 ### ONNX Runtime binaries
 When running the examples in this repo on Windows, you'll need to *copy the `onnxruntime*` dylibs from `target/debug/` to `target/debug/examples/`* on first run. You'll also need to copy the dylibs to `target/debug/deps/` if your project uses pyke Diffusers in a Cargo test.
+
+### CUDA and other execution providers
+CUDA is the only alternative execution provider available with no setup required. Simply enable pyke Diffusers' `ort-cuda` feature and enable `DiffusionDevice::CUDA`; see the docs or the [`stable-diffusion` example](https://github.com/pykeio/diffusers/blob/main/examples/stable-diffusion.rs) for more info. You may need to rebuild your project for `ort` to copy the libraries again.
+
+For other EPs like DirectML or oneDNN, you'll need to build ONNX Runtime from source. See `ort`'s notes on [execution providers](https://github.com/pykeio/ort#execution-providers).
+
+### Low memory usage
+Lower resolution generations require less memory usage.
+
+A `StableDiffusionMemoryOptimizedPipeline` exists for environments with low memory. This pipeline *removes the safety checker* and will only load models when they are required and unloads them immediately after. This will heavily impact performance and should only be used in extreme cases.
+
+#### Quantization
+In extremely constrained environments (e.g. <= 4GB RAM), it is also possible to produce a quantized int8 model. The int8 model's quality is heavily impacted, but faster and less memory intensive on CPUs.
+
+To convert an int8 model:
+```
+$ python3 scripts/hf2pyke.py --quantize=ut ~/stable-diffusion-v1-5/ ~/pyke-diffusers-sd15-quantized/
+```
+
+`--quantize=ut` will quantize only the UNet and text encoder using uint8 mode for best quality and performance. You can choose to convert the other models using the following format:
+- each model is assigned a letter: `u` for UNet, `v` for VAE, and `t` for text encoder.
+- a lowercase letter means the model will be quantized to uint8
+- an uppercase letter means the model will be quantized to int8
+
+Typically, uint8 is higher quality and faster, but you can play around with the settings to see if quality or speed improves.
+
+A combination of 256x256 image generation via `StableDiffusionMemoryOptimizedPipeline` with a uint8 UNet only requires **1.3 GB** of memory usage.
