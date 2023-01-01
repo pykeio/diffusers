@@ -6,10 +6,3 @@ enabled = true
 
   [analyzers.meta]
   msrv = "stable"
-
-[[analyzers]]
-name = "python"
-enabled = true
-
-  [analyzers.meta]
-  runtime_version = "3.x.x"
