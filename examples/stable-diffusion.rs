@@ -26,7 +26,7 @@ fn main() -> anyhow::Result<()> {
 		}
 	)?;
 
-	let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions { steps: 50, ..Default::default() })?;
+	let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions { steps: 20, ..Default::default() })?;
 	imgs[0].clone().into_rgb8().save("result.png")?;
 
 	Ok(())
