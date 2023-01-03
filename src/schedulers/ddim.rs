@@ -153,6 +153,10 @@ impl DDIMScheduler {
 impl DiffusionScheduler for DDIMScheduler {
 	type TimestepType = usize;
 
+	fn order() -> usize {
+		1
+	}
+
 	fn scale_model_input(&mut self, sample: ArrayView4<'_, f32>, _: usize) -> Array4<f32> {
 		sample.to_owned()
 	}

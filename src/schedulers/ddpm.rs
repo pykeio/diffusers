@@ -153,6 +153,10 @@ impl DDPMScheduler {
 impl DiffusionScheduler for DDPMScheduler {
 	type TimestepType = f32;
 
+	fn order() -> usize {
+		1
+	}
+
 	fn scale_model_input(&mut self, sample: ArrayView4<'_, f32>, _: f32) -> Array4<f32> {
 		sample.to_owned()
 	}

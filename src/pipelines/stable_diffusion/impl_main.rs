@@ -334,7 +334,10 @@ impl StableDiffusionPipeline {
 		scheduler.set_timesteps(steps);
 		latents *= scheduler.init_noise_sigma();
 
-		for (i, t) in scheduler.timesteps().to_owned().indexed_iter() {
+		let timesteps = scheduler.timesteps().to_owned();
+		let num_warmup_steps = timesteps.len() - options.steps * S::order();
+
+		for (i, t) in timesteps.to_owned().indexed_iter() {
 			let latent_model_input = if do_classifier_free_guidance {
 				concatenate![Axis(0), latents, latents]
 			} else {
@@ -366,16 +369,18 @@ impl StableDiffusionPipeline {
 			latents = scheduler_output.prev_sample().to_owned();
 
 			if let Some(callback) = options.callback.as_ref() {
-				let keep_going = match callback {
-					StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
-					StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
-					StableDiffusionCallback::Decoded { frequency, cb } if i % frequency == 0 => {
-						cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), options)?)
+				if i == timesteps.len() - 1 || ((i + 1) > num_warmup_steps && (i + 1) % S::order() == 0) {
+					let keep_going = match callback {
+						StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
+						StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
+						StableDiffusionCallback::Decoded { frequency, cb } if i % frequency == 0 => {
+							cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), options)?)
+						}
+						_ => true
+					};
+					if !keep_going {
+						break;
 					}
-					_ => true
-				};
-				if !keep_going {
-					break;
 				}
 			}
 		}

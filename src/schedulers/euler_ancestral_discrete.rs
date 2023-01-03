@@ -108,6 +108,10 @@ impl EulerAncestralDiscreteScheduler {
 impl DiffusionScheduler for EulerAncestralDiscreteScheduler {
 	type TimestepType = f32;
 
+	fn order() -> usize {
+		1
+	}
+
 	/// Scales the denoising model input by `(sigma**2 + 1) ** 0.5` to match the K-LMS algorithm.
 	///
 	/// # Panics

@@ -49,8 +49,8 @@ cfg_if::cfg_if! {
 }
 cfg_if::cfg_if! {
 	if #[cfg(feature = "scheduler-dpm-solver")] {
-		mod dpm_solver;
-		pub use self::dpm_solver::*;
+		mod dpm_solver_multistep;
+		pub use self::dpm_solver_multistep::*;
 	}
 }
 
@@ -146,6 +146,9 @@ impl SchedulerStepOutput {
 pub trait DiffusionScheduler: Default + Clone {
 	/// Scheduler timestep type.
 	type TimestepType: Copy + Clone + ToPrimitive;
+
+	/// Returns the scheduler order.
+	fn order() -> usize;
 
 	/// Ensures interchangeability with schedulers that need to scale the denoising model input depending on the
 	/// current timestep.
