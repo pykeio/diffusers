@@ -5,10 +5,10 @@ use ndarray::Array4;
 
 use crate::{DiffusionDeviceControl, Prompt};
 
-mod impl_onnx;
-pub use self::impl_onnx::*;
-mod impl_onnx_memory_optimized;
-pub use self::impl_onnx_memory_optimized::*;
+mod impl_main;
+pub use self::impl_main::*;
+mod impl_memory_optimized;
+pub use self::impl_memory_optimized::*;
 
 /// Options for the Stable Diffusion pipeline.
 #[derive(Debug, Default, Clone)]
