@@ -81,7 +81,7 @@ impl StableDiffusionMemoryOptimizedPipeline {
 					model_max_length,
 					bos_token,
 					eos_token
-				} => CLIPStandardTokenizer::new(root.join(path.clone()), *model_max_length, *bos_token, *eos_token),
+				} => CLIPStandardTokenizer::new(root.join(path.clone()), true, *model_max_length, *bos_token, *eos_token),
 				#[allow(unreachable_patterns)]
 				_ => anyhow::bail!("not a clip tokenizer")
 			})

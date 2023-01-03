@@ -258,7 +258,8 @@ def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
 			# sample_size + 1 so non-default resolutions work - ONNX throws an error with just sample_size
 			torch.randn(2, in_channels, sample_size, sample_size + 1).to(device=DEVICE, dtype=IO_DTYPE),
 			torch.randn(2).to(device=DEVICE, dtype=IO_DTYPE),
-			torch.randn(2, num_tokens, text_hidden_size).to(device=DEVICE, dtype=IO_DTYPE)
+			# (num_tokens * 3) - 2 to make LPW work.
+			torch.randn(2, (num_tokens * 3) - 2, text_hidden_size).to(device=DEVICE, dtype=IO_DTYPE)
 		),
 		output_path=unet_out_path / 'unet.onnx',
 		ordered_input_names=['sample', 'timestep', 'encoder_hidden_states', 'return_dict'],

@@ -23,6 +23,8 @@ ndarray-rand = "0.14"
 rayon = "1.5"
 num-traits = "0.2"
 anyhow = "1.0"
+regex = "1.7"
+lazy_static = "1.4"
 image = { version = "0.24", default-features = false }
 rand = "0.8"
 cfg-if = "1.0"

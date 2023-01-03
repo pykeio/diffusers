@@ -77,7 +77,7 @@ impl StableDiffusionPipeline {
 					model_max_length,
 					bos_token,
 					eos_token
-				} => CLIPStandardTokenizer::new(root.join(path.clone()), *model_max_length, *bos_token, *eos_token),
+				} => CLIPStandardTokenizer::new(root.join(path.clone()), !options.lpw, *model_max_length, *bos_token, *eos_token),
 				#[allow(unreachable_patterns)]
 				_ => anyhow::bail!("not a clip tokenizer")
 			})
@@ -226,39 +226,58 @@ impl StableDiffusionPipeline {
 			assert_eq!(prompt.len(), neg_prompt.len());
 		}
 
-		let batch_size = prompt.len();
-		let text_input_ids: Vec<Vec<i32>> = tokenizer
-			.encode(prompt.0)?
-			.iter()
-			.map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
-			.collect();
-		for batch in &text_input_ids {
-			if batch.len() > tokenizer.len() {
-				anyhow::bail!("prompts over 77 tokens is not currently implemented");
-			}
-		}
-
 		let text_encoder = self
 			.text_encoder
 			.as_ref()
 			.ok_or_else(|| anyhow::anyhow!("text encoder required for text-based generation"))?;
-		let text_input_ids: Vec<i32> = text_input_ids.into_iter().flatten().collect();
-		let text_input_ids = Array2::from_shape_vec((batch_size, tokenizer.len()), text_input_ids)?.into_dyn();
-		let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
 
-		let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
-
-		if do_classifier_free_guidance {
-			let uncond_input: Vec<i32> = tokenizer
-				.encode(negative_prompt.cloned().unwrap_or_else(|| vec![""; batch_size].into()).0)?
+		let batch_size = prompt.len();
+		let text_embeddings = if self.options.lpw {
+			let embeddings = crate::pipelines::lpw::get_weighted_text_embeddings(
+				tokenizer,
+				text_encoder,
+				prompt,
+				if do_classifier_free_guidance {
+					negative_prompt.cloned().or_else(|| Some(vec![""; batch_size].into()))
+				} else {
+					negative_prompt.cloned()
+				},
+				3,
+				true
+			)?;
+			let mut text_embeddings = embeddings.0;
+			if do_classifier_free_guidance {
+				if let Some(uncond_embeddings) = embeddings.1 {
+					text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
+				}
+			}
+			text_embeddings.into_dyn()
+		} else {
+			let text_input_ids: Vec<Vec<i32>> = tokenizer
+				.encode(prompt.0)?
 				.iter()
-				.flat_map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
+				.map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
 				.collect();
-			let uncond_embeddings =
-				text_encoder.run(vec![InputTensor::from_array(Array2::from_shape_vec((batch_size, tokenizer.len()), uncond_input)?.into_dyn())])?;
-			let uncond_embeddings: ArrayD<f32> = uncond_embeddings[0].try_extract()?.view().to_owned();
-			text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
-		}
+
+			let text_input_ids: Vec<i32> = text_input_ids.into_iter().flatten().collect();
+			let text_input_ids = Array2::from_shape_vec((batch_size, tokenizer.len()), text_input_ids)?.into_dyn();
+			let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
+			let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
+
+			if do_classifier_free_guidance {
+				let uncond_input: Vec<i32> = tokenizer
+					.encode(negative_prompt.cloned().unwrap_or_else(|| vec![""; batch_size].into()).0)?
+					.iter()
+					.flat_map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
+					.collect();
+				let uncond_embeddings =
+					text_encoder.run(vec![InputTensor::from_array(Array2::from_shape_vec((batch_size, tokenizer.len()), uncond_input)?.into_dyn())])?;
+				let uncond_embeddings: ArrayD<f32> = uncond_embeddings[0].try_extract()?.view().to_owned();
+				text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
+			}
+
+			text_embeddings
+		};
 
 		Ok(text_embeddings)
 	}

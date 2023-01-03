@@ -22,7 +22,8 @@ fn main() -> anyhow::Result<()> {
 					})
 				),
 				..Default::default()
-			}
+			},
+			..Default::default()
 		}
 	)?;
 

@@ -5,6 +5,7 @@
 
 pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretrained diffusion model inference to generate images, videos, or audio, using [ONNX Runtime](https://onnxruntime.ai/) as a backend for extremely optimized generation on both CPU & GPU.
 
+- [Features](#features)
 - [Prerequisites](#prerequisites)
   * [LMS notes](#lms-notes)
 - [Installation](#installation)
@@ -15,6 +16,14 @@ pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretraine
   * [CUDA and other execution providers](#cuda-and-other-execution-providers)
   * [Low memory usage](#low-memory-usage)
     + [Quantization](#quantization)
+
+## Features
+- Text-to-image for Stable Diffusion v1 & v2
+- Optimized for both CPU and GPU inference
+- Memory-efficient pipelines to run with <2GB of RAM!
+- \>77 token prompts
+- Prompt weighting, e.g. `a (((house:1.3)) [on] a (hill:0.5), sun, (((sky))).`
+- Implements DDIM, DDPM, DPM/DPM++, Euler & Euler a, LMS schedulers
 
 ## Prerequisites
 You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.

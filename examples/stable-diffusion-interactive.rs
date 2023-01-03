@@ -30,7 +30,8 @@ fn main() -> anyhow::Result<()> {
 					})
 				),
 				..Default::default()
-			}
+			},
+			lpw: true
 		}
 	)?;
 

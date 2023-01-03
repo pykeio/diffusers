@@ -29,29 +29,33 @@ unsafe impl Sync for CLIPStandardTokenizer {}
 
 impl CLIPStandardTokenizer {
 	/// Loads a CLIP tokenizer from a file.
-	pub fn new(path: impl Into<PathBuf>, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
+	pub fn new(path: impl Into<PathBuf>, reconfigure: bool, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
 		let path = path.into();
 		let bytes = std::fs::read(path)?;
-		Self::from_bytes(bytes, model_max_length, bos_token_id, eos_token_id)
+		Self::from_bytes(bytes, reconfigure, model_max_length, bos_token_id, eos_token_id)
 	}
 
 	/// Loads a CLIP tokenizer from a byte array.
-	pub fn from_bytes<B: AsRef<[u8]>>(bytes: B, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
+	pub fn from_bytes<B: AsRef<[u8]>>(bytes: B, reconfigure: bool, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
 		let mut tokenizer: Tokenizer = serde_json::from_slice(bytes.as_ref())?;
-		// For some reason, CLIP tokenizers lose their padding and truncation config when converting from the old HF tokenizers
-		// format, so we have to add them back here.
-		tokenizer
-			.with_padding(Some(PaddingParams {
-				strategy: PaddingStrategy::Fixed(model_max_length),
-				// `clip-vit-base-patch32` and (maybe) all Stable Diffusion models use `"pad_token": "<|endoftext|>"`
-				// This info is also lost in translation in HF tokenizers.
-				pad_id: eos_token_id,
-				..Default::default()
-			}))
-			.with_truncation(Some(TruncationParams {
-				max_length: model_max_length,
-				..Default::default()
-			}));
+		// `reconfigure` is disabled in long prompt weighting; LPW has its own padding and truncation strategy that would
+		// conflict with this configuration.
+		if reconfigure {
+			// For some reason, CLIP tokenizers lose their padding and truncation config when converting from the old HF tokenizers
+			// format, so we have to add them back here.
+			tokenizer
+				.with_padding(Some(PaddingParams {
+					strategy: PaddingStrategy::Fixed(model_max_length),
+					// `clip-vit-base-patch32` and (maybe) all Stable Diffusion models use `"pad_token": "<|endoftext|>"`
+					// This info is also lost in translation in HF tokenizers.
+					pad_id: eos_token_id,
+					..Default::default()
+				}))
+				.with_truncation(Some(TruncationParams {
+					max_length: model_max_length,
+					..Default::default()
+				}));
+		}
 		Ok(Self {
 			tokenizer,
 			model_max_length,
