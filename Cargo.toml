@@ -88,4 +88,4 @@ all-schedulers = [
 ]
 
 stable-diffusion = [ "tokenizers" ]
-safe-stable-diffusion = [ "tokenizers" ]
+safe-stable-diffusion = [ "stable-diffusion", "tokenizers" ]

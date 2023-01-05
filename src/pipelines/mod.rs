@@ -9,6 +9,13 @@ cfg_if::cfg_if! {
 	}
 }
 
+cfg_if::cfg_if! {
+	if #[cfg(feature = "safe-stable-diffusion")] {
+		mod safe_stable_diffusion;
+		pub use self::safe_stable_diffusion::*;
+	}
+}
+
 /// Text prompt(s) used as input in diffusion pipelines.
 ///
 /// Can be converted from one or more prompts:
