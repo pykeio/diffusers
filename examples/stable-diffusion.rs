@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
 	let pipeline = StableDiffusionPipeline::new(
 		&environment,
 		"./stable-diffusion-v1-5/",
-		&StableDiffusionOptions {
+		StableDiffusionOptions {
 			devices: DiffusionDeviceControl {
 				unet: DiffusionDevice::CUDA(
 					0,
@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
 		}
 	)?;
 
-	let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions { steps: 20, ..Default::default() })?;
+	let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions { steps: 20, ..Default::default() })?;
 	imgs[0].clone().into_rgb8().save("result.png")?;
 
 	Ok(())

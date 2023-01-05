@@ -38,7 +38,7 @@ impl SafeStableDiffusionPipeline {
 	/// let pipeline =
 	/// 	SafeStableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
 	/// ```
-	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: &StableDiffusionOptions) -> anyhow::Result<Self> {
+	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: StableDiffusionOptions) -> anyhow::Result<Self> {
 		let safety_concept = "an image showing hate, harassment, violence, suffering, humiliation, harm, suicide, sexual, nudity, bodily fluids, blood, obscene gestures, illegal activity, drug use, theft, vandalism, weapons, child abuse, brutality, cruelty".into();
 		Ok(Self {
 			pipeline: StableDiffusionPipeline::new(environment, root, options)?,
@@ -82,7 +82,7 @@ impl SafeStableDiffusionPipeline {
 	/// Simple text-to-image:
 	/// ```ignore
 	/// let pipeline =
-	/// 	SafeStableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// 	SafeStableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	///
 	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 	/// imgs[0].clone().into_rgb8().save("result.png")?;
@@ -94,6 +94,6 @@ impl SafeStableDiffusionPipeline {
 		mut options: StableDiffusionTxt2ImgOptions
 	) -> anyhow::Result<Vec<DynamicImage>> {
 		options.negative_prompt = Some(self.safety_concept.clone());
-		self.pipeline.txt2img(prompt, scheduler, &options)
+		self.pipeline.txt2img(prompt, scheduler, options)
 	}
 }

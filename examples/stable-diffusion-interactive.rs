@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
 	let pipeline = StableDiffusionPipeline::new(
 		&environment,
 		path,
-		&StableDiffusionOptions {
+		StableDiffusionOptions {
 			devices: DiffusionDeviceControl {
 				unet: DiffusionDevice::CUDA(
 					0,
@@ -45,7 +45,7 @@ fn main() -> anyhow::Result<()> {
 				pipeline.txt2img(
 					prompt,
 					&mut scheduler,
-					&StableDiffusionTxt2ImgOptions {
+					StableDiffusionTxt2ImgOptions {
 						steps: 20,
 						callback: Some(StableDiffusionCallback::Progress {
 							frequency: 1,

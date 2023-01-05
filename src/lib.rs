@@ -17,9 +17,9 @@
 //! let environment = Arc::new(OrtEnvironment::builder().build()?);
 //! let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 //! let pipeline =
-//! 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+//! 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 //!
-//! let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+//! let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 //! ```
 //!
 //! See [`StableDiffusionPipeline`] for more info on the Stable Diffusion pipeline.
@@ -220,7 +220,7 @@ impl DiffusionDeviceControl {
 	/// let pipeline = StableDiffusionPipeline::new(
 	/// 	&environment,
 	/// 	"./stable-diffusion-v1-5/",
-	/// 	&StableDiffusionOptions {
+	/// 	StableDiffusionOptions {
 	/// 		devices: DiffusionDeviceControl::all(DiffusionDevice::CUDA(0, None)),
 	/// 		..Default::default()
 	/// 	}

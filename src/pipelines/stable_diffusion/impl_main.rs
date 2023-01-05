@@ -31,9 +31,9 @@ use crate::{
 /// let environment = Arc::new(OrtEnvironment::builder().build()?);
 /// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 /// let pipeline =
-/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 ///
-/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 /// ```
 pub struct StableDiffusionPipeline {
 	environment: Arc<Environment>,
@@ -54,9 +54,9 @@ impl StableDiffusionPipeline {
 	///
 	/// ```ignore
 	/// let pipeline =
-	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// ```
-	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: &StableDiffusionOptions) -> anyhow::Result<Self> {
+	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: StableDiffusionOptions) -> anyhow::Result<Self> {
 		let root: PathBuf = root.into();
 		let config: DiffusionPipeline = serde_json::from_reader(fs::read(root.join("diffusers.json"))?.as_slice())?;
 		let config: StableDiffusionConfig = match config {
@@ -124,7 +124,7 @@ impl StableDiffusionPipeline {
 
 		Ok(Self {
 			environment: Arc::clone(environment),
-			options: options.clone(),
+			options,
 			config,
 			vae_encoder,
 			vae_decoder,
@@ -142,7 +142,7 @@ impl StableDiffusionPipeline {
 	/// An additional [`StableDiffusionOptions`] parameter can be used to move models to another device.
 	///
 	/// ```ignore
-	/// let mut pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// let mut pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline = pipeline.replace("./waifu-diffusion-v1-3/", None)?;
 	/// ```
 	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<StableDiffusionOptions>) -> anyhow::Result<Self> {
@@ -330,7 +330,7 @@ impl StableDiffusionPipeline {
 		&self,
 		prompt: impl Into<Prompt>,
 		scheduler: &mut S,
-		options: &StableDiffusionTxt2ImgOptions
+		options: StableDiffusionTxt2ImgOptions
 	) -> anyhow::Result<Vec<DynamicImage>> {
 		let steps = options.steps;
 
@@ -393,7 +393,7 @@ impl StableDiffusionPipeline {
 						StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
 						StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
 						StableDiffusionCallback::Decoded { frequency, cb } if i % frequency == 0 => {
-							cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), options)?)
+							cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), &options)?)
 						}
 						_ => true
 					};
@@ -404,6 +404,6 @@ impl StableDiffusionPipeline {
 			}
 		}
 
-		self.decode_latents(latents, options)
+		self.decode_latents(latents, &options)
 	}
 }

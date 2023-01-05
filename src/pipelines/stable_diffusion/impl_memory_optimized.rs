@@ -39,9 +39,9 @@ use crate::{
 /// let environment = Arc::new(OrtEnvironment::builder().build()?);
 /// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 /// let pipeline =
-/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 ///
-/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 /// ```
 pub struct StableDiffusionMemoryOptimizedPipeline {
 	environment: Arc<Environment>,
@@ -58,9 +58,9 @@ impl StableDiffusionMemoryOptimizedPipeline {
 	///
 	/// ```ignore
 	/// let pipeline =
-	/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// ```
-	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: &StableDiffusionOptions) -> anyhow::Result<Self> {
+	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: StableDiffusionOptions) -> anyhow::Result<Self> {
 		let root: PathBuf = root.into();
 		let config: DiffusionPipeline = serde_json::from_reader(fs::read(root.join("diffusers.json"))?.as_slice())?;
 		let config: StableDiffusionConfig = match config {
@@ -89,7 +89,7 @@ impl StableDiffusionMemoryOptimizedPipeline {
 
 		Ok(Self {
 			environment: Arc::clone(environment),
-			options: options.clone(),
+			options,
 			root,
 			config,
 			tokenizer
@@ -200,16 +200,16 @@ impl StableDiffusionMemoryOptimizedPipeline {
 	/// Simple text-to-image:
 	/// ```ignore
 	/// let pipeline =
-	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	///
-	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 	/// imgs[0].clone().into_rgb8().save("result.png")?;
 	/// ```
 	pub fn txt2img<S: DiffusionScheduler>(
 		&self,
 		prompt: impl Into<Prompt>,
 		scheduler: &mut S,
-		options: &StableDiffusionTxt2ImgOptions
+		options: StableDiffusionTxt2ImgOptions
 	) -> anyhow::Result<Vec<DynamicImage>> {
 		let steps = options.steps;
 
@@ -272,7 +272,7 @@ impl StableDiffusionMemoryOptimizedPipeline {
 						StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
 						StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
 						StableDiffusionCallback::Decoded { frequency, cb } if i % frequency == 0 => {
-							cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), options)?)
+							cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), &options)?)
 						}
 						_ => true
 					};
@@ -285,6 +285,6 @@ impl StableDiffusionMemoryOptimizedPipeline {
 			std::mem::drop(unet);
 		}
 
-		self.decode_latents(latents, options)
+		self.decode_latents(latents, &options)
 	}
 }
