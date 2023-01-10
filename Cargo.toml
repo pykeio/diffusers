@@ -1,6 +1,6 @@
 [package]
 name = "pyke-diffusers"
-version = "0.1.0"
+version = "0.2.0"
 rust-version = "1.62"
 edition = "2021"
 license = "Apache-2.0"
@@ -14,7 +14,8 @@ include = [
 	"LICENSE",
 	"README.md",
 	"requirements.txt",
-	"rustfmt.toml"
+	"rustfmt.toml",
+	"!/.env/**"
 ]
 
 [dependencies]
