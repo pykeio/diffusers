@@ -42,7 +42,8 @@ parser.add_argument('-S', '--simplify-small-models', action='store_true', help='
 parser.add_argument('--simplify-unet', action='store_true', help='Run onnx-simplifier on the UNet. Requires `pip install onnxsim` and an unholy amount of free RAM (>24 GB), probably not worth it.')
 parser.add_argument('--override-unet-sample-size', type=int, help='Override the sample size when converting the UNet.')
 parser.add_argument('-O', '--opset', type=int, default=15, help='The ONNX opset version models will be output with.')
-parser.add_argument('-q', '--quantize', type=str, help='Output path.')
+parser.add_argument('-q', '--quantize', type=str, help='Quantize models. See the documentation for more information.')
+parser.add_argument('--no-accelerate', action='store_true', help='Do not use HuggingFace Accelerate for efficient model loading.')
 args = parser.parse_args()
 
 def collect_garbage():
@@ -191,6 +192,16 @@ def load_efficient(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorc
 	model.eval()
 	return model
 
+def load(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorch_model.bin', dtype = MODEL_DTYPE) -> T:
+	model = cls.from_pretrained(root) # type: ignore
+	model = model.to(dtype=dtype, device=DEVICE)
+	model.eval()
+	return model
+
+loader = load_efficient
+if args.no_accelerate:
+	loader = load
+
 @yaspin(text='Converting text encoder', spinner=spinner)
 def convert_text_encoder() -> Tuple[Path, int, int]:
 	text_encoder: CLIPTextModelIOWrapper = CLIPTextModelIOWrapper.from_pretrained(hf_path / 'text_encoder') # type: ignore
@@ -227,7 +238,7 @@ def convert_text_encoder() -> Tuple[Path, int, int]:
 
 @yaspin(text='Converting UNet', spinner=spinner)
 def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
-	unet = load_efficient(UNet2DConditionModelIOWrapper, hf_path / 'unet', dtype=UNET_DTYPE)
+	unet = loader(UNet2DConditionModelIOWrapper, hf_path / 'unet', dtype=UNET_DTYPE)
 
 	if isinstance(unet.config.attention_head_dim, int): # type: ignore
 		slice_size = unet.config.attention_head_dim // 2 # type: ignore
@@ -295,7 +306,7 @@ def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
 
 @yaspin(text='Converting VAE', spinner=spinner)
 def convert_vae(unet_sample_size: int) -> Tuple[Path, Path, int, int]:
-	vae = load_efficient(AutoencoderKLIOWrapper, hf_path / 'vae')
+	vae = loader(AutoencoderKLIOWrapper, hf_path / 'vae')
 
 	vae_in_channels = vae.config['in_channels']
 	vae_sample_size = vae.config['sample_size']
@@ -333,10 +344,12 @@ def convert_vae(unet_sample_size: int) -> Tuple[Path, Path, int, int]:
 
 @yaspin(text='Converting safety checker', spinner=spinner)
 def convert_safety_checker(vae_sample_size: int, vae_out_channels: int) -> Path:
-	with accelerate.init_empty_weights():
-		safety_checker = SafetyCheckerIOWrapper(CLIPConfig.from_json_file(hf_path / 'safety_checker' / 'config.json')) # type: ignore
-
-	accelerate.load_checkpoint_and_dispatch(safety_checker, hf_path / 'safety_checker' / 'pytorch_model.bin', device_map='auto')
+	if args.no_accelerate:
+		safety_checker = loader(SafetyCheckerIOWrapper, hf_path / 'safety_checker', checkpoint_name='pytorch_model.bin')
+	else:
+		with accelerate.init_empty_weights():
+			safety_checker = SafetyCheckerIOWrapper(CLIPConfig.from_json_file(hf_path / 'safety_checker' / 'config.json')) # type: ignore
+		accelerate.load_checkpoint_and_dispatch(safety_checker, hf_path / 'safety_checker' / 'pytorch_model.bin', device_map='auto')
 
 	safety_checker = safety_checker.to(dtype=MODEL_DTYPE, device=DEVICE)
 	safety_checker.eval()
