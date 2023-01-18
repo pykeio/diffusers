@@ -156,14 +156,14 @@ pub enum DiffusionDevice {
 	/// provider parameters. These options can be fine tuned for inference on low-VRAM GPUs
 	/// (~3 GB free seems to be a good number for the Stable Diffusion v1 float16 UNet at 512x512 resolution); see
 	/// [`CUDADeviceOptions`] for an example.
-	CUDA(usize, Option<CUDADeviceOptions>),
+	CUDA(i32, Option<CUDADeviceOptions>),
 	/// Use NVIDIA TensorRT as a device. Requires an NVIDIA Kepler GPU or later.
 	TensorRT,
 	/// Use Windows DirectML as a device. Requires a DirectX 12 compatible GPU.
 	/// Recommended for AMD GPUs.
 	///
 	/// First value is the device ID (which can be set to 0 in most cases).
-	DirectML(usize),
+	DirectML(i32),
 	/// Use Intel oneDNN as a device.
 	OneDNN,
 	/// Custom execution provider w/ options. Other execution providers have not been tested and may not work with some
@@ -178,11 +178,11 @@ impl From<DiffusionDevice> for ExecutionProvider {
 			DiffusionDevice::CUDA(device, options) => {
 				let options = options.unwrap_or_default();
 				let mut ep: ExecutionProvider = options.into();
-				ep = ep.with("device_id", device.to_string());
+				ep = ep.with_device_id(device);
 				ep
 			}
 			DiffusionDevice::TensorRT => ExecutionProvider::tensorrt(),
-			DiffusionDevice::DirectML(_) => todo!("sorry, not implemented yet, please open an issue"),
+			DiffusionDevice::DirectML(device) => ExecutionProvider::directml().with_device_id(device),
 			DiffusionDevice::OneDNN => ExecutionProvider::onednn(),
 			DiffusionDevice::Custom(ep) => ep
 		}

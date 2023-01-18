@@ -29,7 +29,7 @@ lazy_static = "1.4"
 image = { version = "0.24", default-features = false }
 rand = "0.8"
 cfg-if = "1.0"
-ort = { version = "1.13.2", default-features = false }
+ort = { version = "1.14.0-alpha.0", default-features = false }
 
 GSL = { version = "6.0", optional = true }
 
@@ -55,6 +55,7 @@ tokenizers = [ "dep:tokenizers" ]
 
 ort-cuda = [ "ort/cuda" ]
 ort-onednn = [ "ort/onednn" ]
+ort-directml = [ "ort/directml" ]
 ort-copy-dylibs = [ "ort/copy-dylibs" ]
 
 scheduler-lms = [ "dep:GSL" ]
