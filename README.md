@@ -3,7 +3,7 @@
     <hr />
 </div>
 
-pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretrained diffusion model inference to generate images, videos, or audio, using [ONNX Runtime](https://onnxruntime.ai/) as a backend for extremely optimized generation on both CPU & GPU.
+pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretrained diffusion model inference to generate images using [ONNX Runtime](https://onnxruntime.ai/) as a backend for accelerated generation on both CPUs & GPUs.
 
 - [Features](#features)
 - [Prerequisites](#prerequisites)
@@ -16,6 +16,7 @@ pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretraine
   * [CUDA and other execution providers](#cuda-and-other-execution-providers)
   * [Low memory usage](#low-memory-usage)
     + [Quantization](#quantization)
+- [Roadmap](#roadmap)
 
 ## Features
 - Text-to-image for Stable Diffusion v1 & v2
@@ -34,7 +35,7 @@ You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 - If using ROCm: **ROCm v5.2** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html)</sup>
 - If using DirectML: **DirectX 12 compatible GPU**, **Windows 10 v1903+** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)</sup>
 
-Only generic CPU, CUDA, and TensorRT have prebuilt binaries available. Other execution providers will require you to manually build them; see the ONNX Runtime docs for more info. Additionally, you'll need to [make `ort` link to your custom-built binaries](https://github.com/pykeio/ort#execution-providers).
+Only generic CPU, CUDA, and TensorRT have prebuilt binaries available (*for now*). Other execution providers will require you to manually build them; see the ONNX Runtime docs for more info. Additionally, you'll need to [make `ort` link to your custom-built binaries](https://github.com/pykeio/ort#execution-providers).
 
 ### LMS notes
 > **Note**:
@@ -45,9 +46,9 @@ If you plan to enable the `all-schedulers` or `scheduler-lms` feature, you will 
 ## Installation
 ```toml
 [dependencies]
-pyke-diffusers = "0.1"
+pyke-diffusers = "0.2"
 # if you'd like to use CUDA:
-pyke-diffusers = { version = "0.1", features = [ "ort-cuda" ] }
+pyke-diffusers = { version = "0.2", features = [ "ort-cuda" ] }
 ```
 
 The default features enable some commonly used schedulers and pipelines.
@@ -61,9 +62,9 @@ use pyke_diffusers::{
 
 let environment = Arc::new(Environment::builder().build()?);
 let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
-let pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5", &StableDiffusionOptions::default())?;
+let pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5", StableDiffusionOptions::default())?;
 
-let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 imgs[0].clone().into_rgb8().save("result.png")?;
 ```
 
@@ -123,3 +124,15 @@ $ python3 scripts/hf2pyke.py --quantize=ut ~/stable-diffusion-v1-5/ ~/pyke-diffu
 Typically, uint8 is higher quality and faster, but you can play around with the settings to see if quality or speed improves.
 
 A combination of 256x256 image generation via `StableDiffusionMemoryOptimizedPipeline` with a uint8 UNet only requires **1.3 GB** of memory usage.
+
+## Roadmap
+- [ ] Import from original Stable Diffusion checkpoints
+- [ ] Graph fusion for better optimization
+- [ ] Implement img2img, inpainting, and upscaling
+- [ ] Textual inversion
+- [ ] VAE approximation
+- [ ] CLIP layer skip
+- [ ] More schedulers, like DPM++ SDE Karras
+- [ ] Acceleration for M1 Macs
+- [ ] Web interface
+- [ ] Explore other backends (pyke's DragonML, [tract](https://github.com/sonos/tract))
