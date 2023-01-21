@@ -1,13 +1,10 @@
 from argparse import ArgumentParser
-from datetime import date
-import errno
-import gc
 import json
 import os
 from pathlib import Path
 import posixpath
 import shutil
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, Optional, Tuple
 import warnings
 import sys
 
@@ -24,12 +21,13 @@ import torch
 from transformers import CLIPTextModel, CLIPTokenizerFast
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 from transformers.models.clip.configuration_clip import CLIPConfig
-from yaspin import yaspin, spinners
+from yaspin import yaspin
+
+from _export import onnx_export, onnx_simplify
+from _loader import load_standard, load_accelerate
+from _utils import SPINNER, collect_garbage, mkdirp
 
 warnings.filterwarnings('ignore')
-
-spinner = spinners.Spinners._asdict()['clock' if date.today().month == 3 and date.today().day == 14 else 'dots12']
-root = Path(os.path.dirname(os.path.realpath(__file__))).parent
 
 parser = ArgumentParser(prog='hf2pyke', description='Converts HuggingFace Diffusers models to pyke Diffusers models')
 parser.add_argument('hf_path', type=Path, help='Path to the HuggingFace model to convert.')
@@ -45,19 +43,6 @@ parser.add_argument('-O', '--opset', type=int, default=15, help='The ONNX opset 
 parser.add_argument('-q', '--quantize', type=str, help='Quantize models. See the documentation for more information.')
 parser.add_argument('--no-accelerate', action='store_true', help='Do not use HuggingFace Accelerate for efficient model loading.')
 args = parser.parse_args()
-
-def collect_garbage():
-	torch.cuda.empty_cache()
-	gc.collect()
-
-def mkdirp(path: Path):
-	try:
-		os.makedirs(path)
-	except OSError as e:
-		if e.errno == errno.EEXIST and os.path.isdir(path):
-			pass
-		else:
-			raise e
 
 out_path: Path = args.out_path.resolve()
 
@@ -111,30 +96,14 @@ model_config: Dict[str, Any] = {
 	'framework': 'onnx'
 }
 
+model_loader = load_accelerate
+if args.no_accelerate:
+	model_loader = load_standard
+
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 MODEL_DTYPE = torch.float16 if args.fp16 else torch.float32
 UNET_DTYPE = torch.float16 if args.fp16_unet else MODEL_DTYPE
 IO_DTYPE = torch.float32
-
-@torch.inference_mode()
-def onnx_export(
-	model: torch.nn.Module,
-	model_args: Tuple,
-	output_path: Path,
-	ordered_input_names: List[str],
-	output_names: List[str],
-	dynamic_axes: Union[Mapping[str, Mapping[int, str]], Mapping[str, Sequence[int]]]
-):
-	torch.onnx.export(
-		model,
-		model_args,
-		f=output_path.as_posix(),
-		input_names=ordered_input_names,
-		output_names=output_names,
-		dynamic_axes=dynamic_axes,
-		do_constant_folding=True,
-		opset_version=args.opset
-	)
 
 class UNet2DConditionModelIOWrapper(UNet2DConditionModel):
 	def forward(
@@ -176,33 +145,7 @@ class SafetyCheckerIOWrapper(StableDiffusionSafetyChecker):
 		images, has_nsfw_concepts = StableDiffusionSafetyChecker.forward_onnx(self, clip_input, images) # type: ignore
 		return (images.to(dtype=IO_DTYPE), has_nsfw_concepts)
 
-T = TypeVar('T')
-
-@torch.inference_mode()
-def load_efficient(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorch_model.bin', dtype = MODEL_DTYPE) -> T:
-	with accelerate.init_empty_weights():
-		model = cls.from_config( # type: ignore
-			config_path=root / 'config.json',
-			pretrained_model_name_or_path=root
-		)
-
-	accelerate.load_checkpoint_and_dispatch(model, root / checkpoint_name, device_map='auto')
-
-	model = model.to(dtype=dtype, device=DEVICE)
-	model.eval()
-	return model
-
-def load(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytorch_model.bin', dtype = MODEL_DTYPE) -> T:
-	model = cls.from_pretrained(root) # type: ignore
-	model = model.to(dtype=dtype, device=DEVICE)
-	model.eval()
-	return model
-
-loader = load_efficient
-if args.no_accelerate:
-	loader = load
-
-@yaspin(text='Converting text encoder', spinner=spinner)
+@yaspin(text='Converting text encoder', spinner=SPINNER)
 def convert_text_encoder() -> Tuple[Path, int, int]:
 	text_encoder: CLIPTextModelIOWrapper = CLIPTextModelIOWrapper.from_pretrained(hf_path / 'text_encoder') # type: ignore
 	text_encoder = text_encoder.to(dtype=MODEL_DTYPE, device=DEVICE) # type: ignore
@@ -236,9 +179,9 @@ def convert_text_encoder() -> Tuple[Path, int, int]:
 
 	return out_path / 'text_encoder.onnx', num_tokens, text_hidden_size
 
-@yaspin(text='Converting UNet', spinner=spinner)
+@yaspin(text='Converting UNet', spinner=SPINNER)
 def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
-	unet = loader(UNet2DConditionModelIOWrapper, hf_path / 'unet', dtype=UNET_DTYPE)
+	unet = model_loader(UNet2DConditionModelIOWrapper, hf_path / 'unet', device=DEVICE, dtype=UNET_DTYPE)
 
 	if isinstance(unet.config.attention_head_dim, int): # type: ignore
 		slice_size = unet.config.attention_head_dim // 2 # type: ignore
@@ -304,9 +247,9 @@ def convert_unet(num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
 
 	return unet_out_path / 'unet.onnx', sample_size
 
-@yaspin(text='Converting VAE', spinner=spinner)
+@yaspin(text='Converting VAE', spinner=SPINNER)
 def convert_vae(unet_sample_size: int) -> Tuple[Path, Path, int, int]:
-	vae = loader(AutoencoderKLIOWrapper, hf_path / 'vae')
+	vae = model_loader(AutoencoderKLIOWrapper, hf_path / 'vae', device=DEVICE, dtype=MODEL_DTYPE)
 
 	vae_in_channels = vae.config['in_channels']
 	vae_sample_size = vae.config['sample_size']
@@ -342,10 +285,10 @@ def convert_vae(unet_sample_size: int) -> Tuple[Path, Path, int, int]:
 
 	return out_path / 'vae_encoder.onnx', out_path / 'vae_decoder.onnx', vae_sample_size, vae_out_channels
 
-@yaspin(text='Converting safety checker', spinner=spinner)
+@yaspin(text='Converting safety checker', spinner=SPINNER)
 def convert_safety_checker(vae_sample_size: int, vae_out_channels: int) -> Path:
 	if args.no_accelerate:
-		safety_checker = loader(SafetyCheckerIOWrapper, hf_path / 'safety_checker', checkpoint_name='pytorch_model.bin')
+		safety_checker = model_loader(SafetyCheckerIOWrapper, hf_path / 'safety_checker', checkpoint_name='pytorch_model.bin', device=DEVICE, dtype=MODEL_DTYPE)
 	else:
 		with accelerate.init_empty_weights():
 			safety_checker = SafetyCheckerIOWrapper(CLIPConfig.from_json_file(hf_path / 'safety_checker' / 'config.json')) # type: ignore
@@ -420,7 +363,7 @@ with torch.no_grad():
 			
 			collect_garbage()
 
-		with yaspin(text='Quantizing models', spinner=spinner):
+		with yaspin(text='Quantizing models', spinner=SPINNER):
 			letter: str
 			path: Path
 			for letter, path in [('u', unet_path), ('t', text_encoder_path), ('v', vae_decoder_path)]:
@@ -434,29 +377,15 @@ with torch.no_grad():
 	model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
 
 	if args.simplify_small_models or args.simplify_unet:
-		from onnxsim import simplify
-
-		def simplify_model(model_path: Path):
-			model = onnx.load(str(model_path))
-			model_opt, check = simplify(model)
-			if not check:
-				print(f"failed to validate simplified model at {model_path}")
-				sys.exit(1)
-
-			del model
-			onnx.save(model_opt, str(model_path))
-			del model_opt
-			collect_garbage()
-
-		with yaspin(text='Simplifying models', spinner=spinner):
+		with yaspin(text='Simplifying models', spinner=SPINNER):
 			if args.simplify_small_models:
-				simplify_model(text_encoder_path)
-				simplify_model(vae_encoder_path)
-				simplify_model(vae_decoder_path)
+				onnx_simplify(text_encoder_path)
+				onnx_simplify(vae_encoder_path)
+				onnx_simplify(vae_decoder_path)
 
 			if args.simplify_unet:
 				print('--simplify-unet: I hope you know what you\'re doing.')
-				simplify_model(unet_path)
+				onnx_simplify(unet_path)
 
 	model_config['hashes'] = {
 		"text-encoder": hashfile(text_encoder_path, hexdigest=True),
