@@ -91,9 +91,7 @@ To convert a model from a HuggingFace `diffusers` model:
     - To convert a float16 model from HF (recommended for GPU inference): `python3 scripts/hf2pyke.py --fp16 runwayml/stable-diffusion-v1-5@fp16 ~/pyke-diffusers-sd15-fp16/`
     - To convert a float16 model from disk: `python3 scripts/hf2pyke.py --fp16 ~/stable-diffusion-v1-5-fp16/ ~/pyke-diffusers-sd15-fp16/`
 
-float16 models are faster on some GPUs and use less memory. However, it should be noted that, if you are using float16 models for GPU inference, **they must be converted on the hardware they will be run on** due to an ONNX Runtime bug. CPUs using float16 models should not have this issue however.
-
-`hf2pyke` supports a few options to improve performance or ORT execution provider compatibility. See `python3 scripts/hf2pyke.py --help`.
+float16 models are faster on some GPUs and use less memory. `hf2pyke` supports a few options to improve performance or ORT execution provider compatibility. See `python3 scripts/hf2pyke.py --help`.
 
 ### ONNX Runtime binaries
 When running the examples in this repo on Windows, you'll need to *copy the `onnxruntime*` dylibs from `target/debug/` to `target/debug/examples/`* on first run. You'll also need to copy the dylibs to `target/debug/deps/` if your project uses pyke Diffusers in a Cargo test.
