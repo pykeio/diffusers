@@ -10,7 +10,7 @@ use show_image::{ImageInfo, ImageView, WindowOptions};
 
 #[show_image::main]
 fn main() -> anyhow::Result<()> {
-	let environment = Arc::new(OrtEnvironment::builder().with_name("Stable Diffusion").build()?);
+	let environment = OrtEnvironment::default().into_arc();
 	let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 
 	let mut path = env::current_dir()?;

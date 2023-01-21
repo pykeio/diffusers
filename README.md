@@ -56,11 +56,11 @@ The default features enable some commonly used schedulers and pipelines.
 ## Usage
 ```rust
 use pyke_diffusers::{
-    Environment, EulerDiscreteScheduler, SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline,
+    EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline,
     StableDiffusionTxt2ImgOptions
 };
 
-let environment = Arc::new(Environment::builder().build()?);
+let environment = OrtEnvironment::default().into_arc();
 let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 let pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5", StableDiffusionOptions::default())?;
 
@@ -74,7 +74,7 @@ imgs[0].clone().into_rgb8().save("result.png")?;
 $ cargo run --example stable-diffusion-interactive --features ort-cuda -- ~/path/to/stable-diffusion/
 ```
 
-See [`examples/`](https://github.com/pykeio/diffusers/tree/main/examples) for more examples and [the docs](https://docs.rs/pyke-diffusers) for more detailed information..
+See [`examples/`](https://github.com/pykeio/diffusers/tree/main/examples) for more examples and [the docs](https://docs.rs/pyke-diffusers) for more detailed information.
 
 ### Converting models
 pyke Diffusers currently supports Stable Diffusion v1, v2, and its derivatives.

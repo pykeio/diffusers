@@ -6,7 +6,7 @@ use pyke_diffusers::{
 };
 
 fn main() -> anyhow::Result<()> {
-	let environment = Arc::new(OrtEnvironment::builder().with_name("Stable Diffusion").build()?);
+	let environment = OrtEnvironment::default().into_arc();
 	let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 	let pipeline = StableDiffusionPipeline::new(
 		&environment,
