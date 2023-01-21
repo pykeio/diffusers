@@ -1,0 +1,6 @@
+[book]
+authors = ["Carson M."]
+language = "en"
+multilingual = false
+src = "src"
+title = "pyke Diffusers"
