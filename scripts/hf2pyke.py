@@ -29,8 +29,8 @@ from _utils import SPINNER, collect_garbage, mkdirp
 
 warnings.filterwarnings('ignore')
 
-parser = ArgumentParser(prog='hf2pyke', description='Converts HuggingFace Diffusers models to pyke Diffusers models')
-parser.add_argument('hf_path', type=Path, help='Path to the HuggingFace model to convert.')
+parser = ArgumentParser(prog='hf2pyke', description='Converts Hugging Face Diffusers models to pyke Diffusers models')
+parser.add_argument('hf_path', type=Path, help='Path to the Hugging Face model to convert.')
 parser.add_argument('out_path', type=Path, help='Output path.')
 parser.add_argument('-H', '--fp16', action='store_true', help='Convert all models to float16. Saves disk space, memory, and boosts speed on GPUs with little quality loss.')
 parser.add_argument('--fp16-unet', action='store_true', help='Only convert the UNet to float16. Can be beneficial when only the UNet is placed on GPU.')
@@ -41,7 +41,7 @@ parser.add_argument('--simplify-unet', action='store_true', help='Run onnx-simpl
 parser.add_argument('--override-unet-sample-size', type=int, help='Override the sample size when converting the UNet.')
 parser.add_argument('-O', '--opset', type=int, default=15, help='The ONNX opset version models will be output with.')
 parser.add_argument('-q', '--quantize', type=str, help='Quantize models. See the documentation for more information.')
-parser.add_argument('--no-accelerate', action='store_true', help='Do not use HuggingFace Accelerate for efficient model loading.')
+parser.add_argument('--no-accelerate', action='store_true', help='Do not use Hugging Face Accelerate for efficient model loading.')
 args = parser.parse_args()
 
 out_path: Path = args.out_path.resolve()
@@ -85,7 +85,7 @@ if not os.path.exists(args.hf_path):
 
 model_index = json.load(open(hf_path / 'model_index.json'))
 if not model_index['_diffusers_version']:
-	print('repo is not a HuggingFace diffusers model')
+	print('repo is not a Hugging Face Diffusers model')
 	sys.exit(1)
 if model_index['_class_name'] != 'StableDiffusionPipeline':
 	print('repo is not a Stable Diffusion model; only Stable Diffusion models are supported')

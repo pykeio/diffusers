@@ -1,11 +1,11 @@
 //! <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.png" width="100%" alt="pyke Diffusers">
 //!
 //! `pyke-diffusers` is a modular library for pretrained diffusion model inference using [ONNX Runtime], inspired by
-//! [HuggingFace diffusers].
+//! [Hugging Face diffusers].
 //!
 //! ONNX Runtime provides optimized inference for both CPUs and GPUs, including both NVIDIA & AMD GPUs via DirectML.
 //!
-//! `pyke-diffusers` is focused on ease of use, with an API closely modeled after HuggingFace diffusers:
+//! `pyke-diffusers` is focused on ease of use, with an API closely modeled after Hugging Face diffusers:
 //! ```ignore
 //! use std::sync::Arc;
 //!
@@ -25,7 +25,7 @@
 //! See [`StableDiffusionPipeline`] for more info on the Stable Diffusion pipeline.
 //!
 //! [ONNX Runtime]: https://onnxruntime.ai/
-//! [HuggingFace diffusers]: https://github.com/huggingface/diffusers
+//! [Hugging Face diffusers]: https://github.com/huggingface/diffusers
 
 #![doc(html_logo_url = "https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers-square.png")]
 #![warn(missing_docs)]

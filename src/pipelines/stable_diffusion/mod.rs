@@ -111,7 +111,7 @@ pub struct StableDiffusionTxt2ImgOptions {
 	/// An optional seed to use when first generating noise. The same seed with the same scheduler, prompt, & guidance
 	/// scale will produce the same image. If `None`, a random seed will be generated.
 	///
-	/// Seeds are not interchangable between schedulers, and **a seed from HuggingFace diffusers or AUTOMATIC1111's
+	/// Seeds are not interchangable between schedulers, and **a seed from Hugging Face diffusers or AUTOMATIC1111's
 	/// web UI will *not* generate the same image** in pyke Diffusers.
 	pub seed: Option<u64>,
 	/// Optional prompt(s) describing what the model should **not** generate in classifier-free guidance. Typically used
