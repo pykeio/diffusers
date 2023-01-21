@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
-use ndarray::{concatenate, Array1, Array2, Array4, ArrayD, Axis, IxDyn};
+use ndarray::{concatenate, Array1, Array4, ArrayD, Axis, IxDyn};
 use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use num_traits::ToPrimitive;
 use ort::{
@@ -120,42 +120,58 @@ impl StableDiffusionMemoryOptimizedPipeline {
 			.as_ref()
 			.ok_or_else(|| anyhow::anyhow!("tokenizer required for text-based generation"))?;
 
-		if let Some(neg_prompt) = negative_prompt {
-			assert_eq!(prompt.len(), neg_prompt.len());
-		}
-
 		let batch_size = prompt.len();
-		let text_input_ids: Vec<Vec<i32>> = tokenizer
-			.encode(prompt.0)?
-			.iter()
-			.map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
-			.collect();
-		for batch in &text_input_ids {
-			if batch.len() > tokenizer.len() {
-				anyhow::bail!("prompts over 77 tokens is not currently implemented");
+		let negative_prompt = if let Some(negative_prompt) = negative_prompt {
+			if batch_size > 1 && negative_prompt.len() == 1 {
+				Some(Prompt::from(vec![negative_prompt[0].clone(); batch_size]))
+			} else {
+				assert_eq!(batch_size, negative_prompt.len());
+				Some(negative_prompt.to_owned())
 			}
-		}
+		} else {
+			None
+		};
 
 		let text_encoder = self
 			.load_text_encoder()?
 			.ok_or_else(|| anyhow::anyhow!("text encoder required for text-based generation"))?;
-		let text_input_ids: Vec<i32> = text_input_ids.into_iter().flatten().collect();
-		let text_input_ids = Array2::from_shape_vec((batch_size, tokenizer.len()), text_input_ids)?.into_dyn();
-		let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
 
-		let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
+		let text_embeddings = if self.options.lpw {
+			let embeddings = crate::pipelines::lpw::get_weighted_text_embeddings(
+				tokenizer,
+				&text_encoder,
+				prompt,
+				if do_classifier_free_guidance {
+					negative_prompt.or_else(|| Some(Prompt::default_batched(batch_size)))
+				} else {
+					negative_prompt
+				},
+				3,
+				true
+			)?;
+			let mut text_embeddings = embeddings.0;
+			if do_classifier_free_guidance {
+				if let Some(uncond_embeddings) = embeddings.1 {
+					text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
+				}
+			}
+			text_embeddings.into_dyn()
+		} else {
+			let text_input_ids = tokenizer.encode_for_text_model(prompt.0)?.into_dyn();
+			let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
+			let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
 
-		if do_classifier_free_guidance {
-			let uncond_input: Vec<i32> = tokenizer
-				.encode(negative_prompt.cloned().unwrap_or_else(|| vec![""; batch_size].into()).0)?
-				.iter()
-				.flat_map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
-				.collect();
-			let uncond_embeddings =
-				text_encoder.run(vec![InputTensor::from_array(Array2::from_shape_vec((batch_size, tokenizer.len()), uncond_input)?.into_dyn())])?;
-			let uncond_embeddings: ArrayD<f32> = uncond_embeddings[0].try_extract()?.view().to_owned();
-			text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
-		}
+			if do_classifier_free_guidance {
+				let uncond_input = tokenizer
+					.encode_for_text_model(negative_prompt.unwrap_or_else(|| Prompt::default_batched(batch_size)).0)?
+					.into_dyn();
+				let uncond_embeddings = text_encoder.run(vec![InputTensor::from_array(uncond_input)])?;
+				let uncond_embeddings: ArrayD<f32> = uncond_embeddings[0].try_extract()?.view().to_owned();
+				text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
+			}
+
+			text_embeddings
+		};
 
 		Ok(text_embeddings)
 	}

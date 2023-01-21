@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+use ndarray::Array2;
 use serde::{Deserialize, Serialize};
 use tokenizers::{models::bpe::BPE, EncodeInput, PaddingParams, PaddingStrategy, Tokenizer, TruncationParams};
 
@@ -96,7 +97,7 @@ impl CLIPStandardTokenizer {
 		self.bos_token_id
 	}
 
-	/// Encodes the input string(s) into an array of token IDs.
+	/// Encodes the input string(s) into arrays of token IDs.
 	pub fn encode<'s, 'e, E>(&self, enc: Vec<E>) -> anyhow::Result<Vec<Vec<u32>>>
 	where
 		E: Into<EncodeInput<'s>> + Send
@@ -108,5 +109,20 @@ impl CLIPStandardTokenizer {
 			.iter()
 			.map(|f| f.get_ids().to_vec())
 			.collect())
+	}
+
+	/// Encodes the input prompts into an [`Array2`] to be passed to a CLIPTextModel.
+	pub fn encode_for_text_model<'s, 'e, E>(&self, enc: Vec<E>) -> anyhow::Result<Array2<i32>>
+	where
+		E: Into<EncodeInput<'s>> + Send
+	{
+		let batch_size = enc.len();
+		Ok(Array2::from_shape_vec(
+			(batch_size, self.len()),
+			self.encode(enc)?
+				.iter()
+				.flat_map(|v| v.iter().map(|tok| *tok as _).collect::<Vec<i32>>())
+				.collect()
+		)?)
 	}
 }
