@@ -25,8 +25,15 @@ cfg_if::cfg_if! {
 /// let prompts: Prompt = ["photo of a red fox", "photo of an Arctic fox"].into();
 /// let prompts: Prompt = vec!["photo of a red fox", "photo of an Arctic fox"].into();
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Prompt(pub(crate) Vec<String>);
+
+impl Prompt {
+	/// Creates a default prompt with a given batch size.
+	pub fn default_batched(batch_size: usize) -> Prompt {
+		Prompt(vec![String::new(); batch_size])
+	}
+}
 
 impl Deref for Prompt {
 	type Target = Vec<String>;

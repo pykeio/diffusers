@@ -99,15 +99,14 @@ impl CLIPStandardTokenizer {
 	/// Encodes the input string(s) into an array of token IDs.
 	pub fn encode<'s, 'e, E>(&self, enc: Vec<E>) -> anyhow::Result<Vec<Vec<u32>>>
 	where
-		E: Into<EncodeInput<'s>>
+		E: Into<EncodeInput<'s>> + Send
 	{
-		let enc_len = enc.len();
-		let encoded: Vec<Vec<u32>> = enc
-			.into_iter()
-			.map(|f| self.tokenizer.encode(f, true).map(|f| f.get_ids().to_vec()))
-			.scan((), |_, x| x.ok())
-			.collect();
-		assert_eq!(encoded.len(), enc_len);
-		Ok(encoded)
+		Ok(self
+			.tokenizer
+			.encode_batch(enc, true)
+			.map_err(|e| anyhow::anyhow!("{e:?}"))?
+			.iter()
+			.map(|f| f.get_ids().to_vec())
+			.collect())
 	}
 }

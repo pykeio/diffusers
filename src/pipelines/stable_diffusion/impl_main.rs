@@ -222,25 +222,32 @@ impl StableDiffusionPipeline {
 			.as_ref()
 			.ok_or_else(|| anyhow::anyhow!("tokenizer required for text-based generation"))?;
 
-		if let Some(neg_prompt) = negative_prompt {
-			assert_eq!(prompt.len(), neg_prompt.len());
-		}
+		let batch_size = prompt.len();
+		let negative_prompt = if let Some(negative_prompt) = negative_prompt {
+			if batch_size > 1 && negative_prompt.len() == 1 {
+				Some(Prompt::from(vec![negative_prompt[0].clone(); batch_size]))
+			} else {
+				assert_eq!(batch_size, negative_prompt.len());
+				Some(negative_prompt.to_owned())
+			}
+		} else {
+			None
+		};
 
 		let text_encoder = self
 			.text_encoder
 			.as_ref()
 			.ok_or_else(|| anyhow::anyhow!("text encoder required for text-based generation"))?;
 
-		let batch_size = prompt.len();
 		let text_embeddings = if self.options.lpw {
 			let embeddings = crate::pipelines::lpw::get_weighted_text_embeddings(
 				tokenizer,
 				text_encoder,
 				prompt,
 				if do_classifier_free_guidance {
-					negative_prompt.cloned().or_else(|| Some(vec![""; batch_size].into()))
+					negative_prompt.or_else(|| Some(Prompt::default_batched(batch_size)))
 				} else {
-					negative_prompt.cloned()
+					negative_prompt
 				},
 				3,
 				true
@@ -253,22 +260,21 @@ impl StableDiffusionPipeline {
 			}
 			text_embeddings.into_dyn()
 		} else {
-			let text_input_ids: Vec<Vec<i32>> = tokenizer
+			let text_input_ids: Vec<i32> = tokenizer
 				.encode(prompt.0)?
 				.iter()
-				.map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
+				.flat_map(|v| v.iter().map(|tok| *tok as _).collect::<Vec<i32>>())
 				.collect();
 
-			let text_input_ids: Vec<i32> = text_input_ids.into_iter().flatten().collect();
 			let text_input_ids = Array2::from_shape_vec((batch_size, tokenizer.len()), text_input_ids)?.into_dyn();
 			let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
 			let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
 
 			if do_classifier_free_guidance {
 				let uncond_input: Vec<i32> = tokenizer
-					.encode(negative_prompt.cloned().unwrap_or_else(|| vec![""; batch_size].into()).0)?
+					.encode(negative_prompt.unwrap_or_else(|| Prompt::default_batched(batch_size)).0)?
 					.iter()
-					.flat_map(|v| v.iter().map(|tok| *tok as i32).collect::<Vec<i32>>())
+					.flat_map(|v| v.iter().map(|tok| *tok as _).collect::<Vec<i32>>())
 					.collect();
 				let uncond_embeddings =
 					text_encoder.run(vec![InputTensor::from_array(Array2::from_shape_vec((batch_size, tokenizer.len()), uncond_input)?.into_dyn())])?;
