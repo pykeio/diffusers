@@ -193,6 +193,17 @@ impl StableDiffusionPipeline {
 				.transpose()?;
 		}
 
+		self.tokenizer = match &new_config.tokenizer {
+			TokenizerConfig::CLIPTokenizer {
+				path,
+				model_max_length,
+				bos_token,
+				eos_token
+			} => CLIPStandardTokenizer::new(new_root.join(path.clone()), !options.lpw, *model_max_length, *bos_token, *eos_token)?,
+			#[allow(unreachable_patterns)]
+			_ => anyhow::bail!("not a clip tokenizer")
+		};
+
 		self.options.clone_from(&options);
 		self.config = new_config;
 
