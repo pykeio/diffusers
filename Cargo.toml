@@ -56,6 +56,7 @@ tokenizers = [ "dep:tokenizers" ]
 ort-cuda = [ "ort/cuda" ]
 ort-onednn = [ "ort/onednn" ]
 ort-directml = [ "ort/directml" ]
+ort-coreml = [ "ort/coreml" ]
 ort-copy-dylibs = [ "ort/copy-dylibs" ]
 
 scheduler-lms = [ "dep:GSL" ]

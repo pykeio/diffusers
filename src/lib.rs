@@ -166,6 +166,8 @@ pub enum DiffusionDevice {
 	DirectML(i32),
 	/// Use Intel oneDNN as a device.
 	OneDNN,
+	/// Use CoreML as a device.
+	CoreML,
 	/// Custom execution provider w/ options. Other execution providers have not been tested and may not work with some
 	/// models.
 	Custom(ExecutionProvider)
@@ -184,6 +186,7 @@ impl From<DiffusionDevice> for ExecutionProvider {
 			DiffusionDevice::TensorRT => ExecutionProvider::tensorrt(),
 			DiffusionDevice::DirectML(device) => ExecutionProvider::directml().with_device_id(device),
 			DiffusionDevice::OneDNN => ExecutionProvider::onednn(),
+			DiffusionDevice::CoreML => ExecutionProvider::coreml(),
 			DiffusionDevice::Custom(ep) => ep
 		}
 	}
