@@ -164,6 +164,8 @@ pub enum DiffusionDevice {
 	///
 	/// First value is the device ID (which can be set to 0 in most cases).
 	DirectML(i32),
+	/// Use ROCm as a device for AMD GPUs.
+	ROCm(i32),
 	/// Use Intel oneDNN as a device.
 	OneDNN,
 	/// Use CoreML as a device.
@@ -185,6 +187,7 @@ impl From<DiffusionDevice> for ExecutionProvider {
 			}
 			DiffusionDevice::TensorRT => ExecutionProvider::tensorrt(),
 			DiffusionDevice::DirectML(device) => ExecutionProvider::directml().with_device_id(device),
+			DiffusionDevice::ROCm(device) => ExecutionProvider::rocm().with_device_id(device),
 			DiffusionDevice::OneDNN => ExecutionProvider::onednn(),
 			DiffusionDevice::CoreML => ExecutionProvider::coreml(),
 			DiffusionDevice::Custom(ep) => ep
