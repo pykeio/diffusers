@@ -70,7 +70,7 @@ imgs[0].clone().into_rgb8().save("result.png")?;
 
 ### Examples
 `pyke-diffusers` includes an interactive Stable Diffusion demo. Run it with:
-```
+```bash
 $ cargo run --example stable-diffusion-interactive --features ort-cuda -- ~/path/to/stable-diffusion/
 ```
 
@@ -110,7 +110,7 @@ A `StableDiffusionMemoryOptimizedPipeline` exists for environments with low memo
 In extremely constrained environments (e.g. <= 4GB RAM), it is also possible to produce a quantized int8 model. The int8 model's quality is heavily impacted, but faster and less memory intensive on CPUs.
 
 To convert an int8 model:
-```
+```bash
 $ python3 scripts/hf2pyke.py --quantize=ut ~/stable-diffusion-v1-5/ ~/pyke-diffusers-sd15-quantized/
 ```
 
