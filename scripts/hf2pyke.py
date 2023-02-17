@@ -9,8 +9,9 @@ import warnings
 import sys
 
 import accelerate
+from diffusers.models.autoencoder_kl import AutoencoderKL, AutoencoderKLOutput
 from diffusers.models.unet_2d_condition import UNet2DConditionModel
-from diffusers.models.vae import AutoencoderKL, AutoencoderKLOutput, DecoderOutput
+from diffusers.models.vae import DecoderOutput
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from huggingface_hub import snapshot_download # type: ignore
 from imohash import hashfile
