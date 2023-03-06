@@ -126,11 +126,11 @@ A combination of 256x256 image generation via `StableDiffusionMemoryOptimizedPip
 ## Roadmap
 - [ ] Import from original Stable Diffusion checkpoints
 - [ ] Graph fusion for better optimization
-- [ ] Implement img2img, inpainting, and upscaling
+- [ ] Implement img2img, inpainting, and upscaling ([#2](https://github.com/pykeio/diffusers/issues/2))
 - [ ] Textual inversion
-- [ ] VAE approximation
+- [x] VAE approximation
 - [ ] CLIP layer skip
-- [ ] More schedulers, like DPM++ SDE Karras
-- [ ] Acceleration for M1 Macs
+- [ ] Rewrite scheduler system ([#16](https://github.com/pykeio/diffusers/issues/16))
+- [ ] Acceleration for M1 Macs ([#14](https://github.com/pykeio/diffusers/issues/14))
 - [ ] Web interface
 - [ ] Explore other backends (pyke's DragonML, [tract](https://github.com/sonos/tract))

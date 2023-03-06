@@ -29,7 +29,8 @@ lazy_static = "1.4"
 image = { version = "0.24", default-features = false }
 rand = "0.8"
 cfg-if = "1.0"
-ort = { version = "1.14.0-beta.0", default-features = false }
+ort = { version = "1.14", default-features = false }
+ndarray_einsum_beta = "0.7.0"
 
 GSL = { version = "6.0", optional = true }
 
@@ -49,10 +50,11 @@ show-image = { version = "0.13", features = [ "image" ] }
 features = [ "ort/disable-build-script" ]
 
 [features]
-default = [ "common-schedulers", "ort-copy-dylibs", "stable-diffusion" ]
+default = [ "ort-download-binaries", "common-schedulers", "ort-copy-dylibs", "stable-diffusion" ]
 
 tokenizers = [ "dep:tokenizers" ]
 
+ort-download-binaries = [ "ort/download-binaries" ]
 ort-cuda = [ "ort/cuda" ]
 ort-tensorrt = [ "ort/tensorrt" ]
 ort-rocm = [ "ort/rocm" ]

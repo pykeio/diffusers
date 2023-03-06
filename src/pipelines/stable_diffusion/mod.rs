@@ -75,7 +75,9 @@ pub enum StableDiffusionCallback {
 		/// - **`latents`** (`Array4<f32>`): Scheduler latent outputs for this step.
 		cb: Box<dyn Fn(usize, f32, Array4<f32>) -> bool>
 	},
-	/// A callback to receive this step's decoded latents, to be used for e.g. showing image progress visually.
+	/// A callback to receive this step's fully decoded latents, to be used for e.g. showing image progress visually.
+	/// This is very expensive, as it will execute the VAE decoder on each call. See
+	/// [`StableDiffusionCallback::ApproximateDecoded`] for an approximated version.
 	Decoded {
 		/// Describes how frequently to call this callback (3 = every 3 steps).
 		frequency: usize,
@@ -83,6 +85,19 @@ pub enum StableDiffusionCallback {
 		/// - **`step`** (usize): The current step number.
 		/// - **`timestep`** (f32): This step's timestep.
 		/// - **`image`** (`Vec<DynamicImage>`): Vector of decoded images for this step.
+		cb: Box<dyn Fn(usize, f32, Vec<DynamicImage>) -> bool>
+	},
+	/// A callback to receive this step's approximately decoded latents, to be used for e.g. showing image progress
+	/// visually. This is lower quality than [`StableDiffusionCallback::Decoded`] but much faster.
+	///
+	/// Approximated images may be noisy and colors will not be accurate (especially if using a fine-tuned VAE).
+	ApproximateDecoded {
+		/// Describes how frequently to call this callback (3 = every 3 steps).
+		frequency: usize,
+		/// Function Parameters:
+		/// - **`step`** (usize): The current step number.
+		/// - **`timestep`** (f32): This step's timestep.
+		/// - **`image`** (`Vec<DynamicImage>`): Vector of approximated decoded images for this step.
 		cb: Box<dyn Fn(usize, f32, Vec<DynamicImage>) -> bool>
 	}
 }
