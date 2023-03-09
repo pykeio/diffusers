@@ -1,7 +1,7 @@
 accelerate
 ftfy
-diffusers>=0.12.1
-huggingface-hub>=0.10.0
+diffusers==0.14.0
+huggingface-hub>=0.10.0,<1
 imohash
 numpy
 OmegaConf
@@ -11,5 +11,5 @@ safetensors
 scipy
 spacy
 termcolor
-transformers>=4.21.0
+transformers>=4.21.0,<5
 yaspin
