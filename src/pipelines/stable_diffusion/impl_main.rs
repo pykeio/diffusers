@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
@@ -163,47 +164,24 @@ impl StableDiffusionPipeline {
 		let options = options.unwrap_or_else(|| self.options.clone());
 
 		if self.config.hashes.unet != new_config.hashes.unet {
-			std::mem::drop(self.unet);
-			self.unet = SessionBuilder::new(&self.environment)?
-				.with_execution_providers([self.options.devices.unet.clone().into()])?
-				.with_model_from_file(new_root.join(new_config.unet.path.clone()))?;
+			let path = new_root.join(new_config.unet.path.clone());
+			self.replace_unet(path)?
 		}
 		if self.config.hashes.text_encoder != new_config.hashes.text_encoder {
-			std::mem::drop(self.text_encoder);
-			self.text_encoder = SessionBuilder::new(&self.environment)?
-				.with_execution_providers([options.devices.text_encoder.clone().into()])?
-				.with_model_from_file(new_root.join(new_config.text_encoder.path.clone()))?;
+			let path = new_root.join(new_config.text_encoder.path.clone());
+			self.replace_text_encoder(path)?
 		}
 		if self.config.hashes.vae_decoder != new_config.hashes.vae_decoder {
-			std::mem::drop(self.vae_decoder);
-			self.vae_decoder = SessionBuilder::new(&self.environment)?
-				.with_execution_providers([options.devices.vae_decoder.clone().into()])?
-				.with_model_from_file(new_root.join(new_config.vae.decoder.clone()))?;
+			let path = new_root.join(new_config.vae.decoder.clone());
+			self.replace_vae_decoder(path)?
 		}
 		if self.config.hashes.vae_encoder != new_config.hashes.vae_encoder {
-			std::mem::drop(self.vae_encoder);
-			self.vae_encoder = new_config
-				.vae
-				.encoder
-				.as_ref()
-				.map(|path| -> OrtResult<Session> {
-					SessionBuilder::new(&self.environment)?
-						.with_execution_providers([options.devices.vae_encoder.clone().into()])?
-						.with_model_from_file(new_root.join(path))
-				})
-				.transpose()?;
+			let path = new_config.vae.encoder.as_ref().map(|s| new_root.join(s));
+			self.replace_vae_encoder(path)?
 		}
 		if self.config.hashes.safety_checker != new_config.hashes.safety_checker {
-			std::mem::drop(self.safety_checker);
-			self.safety_checker = new_config
-				.safety_checker
-				.as_ref()
-				.map(|safety_checker| -> OrtResult<Session> {
-					SessionBuilder::new(&self.environment)?
-						.with_execution_providers([options.devices.safety_checker.clone().into()])?
-						.with_model_from_file(new_root.join(safety_checker.path.clone()))
-				})
-				.transpose()?;
+			let path = new_config.safety_checker.as_ref().map(|s| new_root.join(&s.path));
+			self.replace_safety_checker(path)?
 		}
 
 		self.tokenizer = match &new_config.tokenizer {
@@ -221,6 +199,55 @@ impl StableDiffusionPipeline {
 		self.config = new_config;
 
 		Ok(self)
+	}
+	/// Replace unet model at runtime, ensuring that the model is using the same config as before.
+	pub fn replace_unet<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
+		self.unet = SessionBuilder::new(&self.environment)?
+			.with_execution_providers([self.options.devices.unet.clone().into()])?
+			.with_model_from_file(path)?;
+		Ok(())
+	}
+	/// Replace text encode model at runtime, ensuring that the model is using the same config as before.
+	pub fn replace_text_encoder<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
+		self.text_encoder = SessionBuilder::new(&self.environment)?
+			.with_execution_providers([self.options.devices.text_encoder.clone().into()])?
+			.with_model_from_file(path)?;
+		Ok(())
+	}
+	/// Replace vae decode model at runtime, ensuring that the model is using the same config as before.
+	pub fn replace_vae_decoder<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
+		self.vae_decoder = SessionBuilder::new(&self.environment)?
+			.with_execution_providers([self.options.devices.vae_decoder.clone().into()])?
+			.with_model_from_file(path)?;
+		Ok(())
+	}
+	/// Replace vae encode model at runtime, ensuring that the model is using the same config as before.
+	pub fn replace_vae_encoder<P: AsRef<Path>>(&mut self, path: Option<P>) -> OrtResult<()> {
+		match path {
+			Some(s) => {
+				self.vae_encoder = Some(
+					SessionBuilder::new(&self.environment)?
+						.with_execution_providers([self.options.devices.vae_encoder.clone().into()])?
+						.with_model_from_file(s)?
+				);
+			}
+			None => self.vae_encoder = None
+		}
+		Ok(())
+	}
+	/// Replace safety checker at runtime, ensuring that the model is using the same config as before.
+	pub fn replace_safety_checker<P: AsRef<Path>>(&mut self, path: Option<P>) -> OrtResult<()> {
+		match path {
+			Some(s) => {
+				self.safety_checker = Some(
+					SessionBuilder::new(&self.environment)?
+						.with_execution_providers([self.options.devices.vae_encoder.clone().into()])?
+						.with_model_from_file(s)?
+				);
+			}
+			None => self.safety_checker = None
+		}
+		Ok(())
 	}
 
 	/// Encodes the given prompt(s) into an array of text embeddings to be used as input to the UNet.
