@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use pyke_diffusers::{
 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionMemoryOptimizedPipeline, StableDiffusionOptions,
 	StableDiffusionTxt2ImgOptions

@@ -28,20 +28,24 @@ use crate::{
 /// be abysmal compared to the standard [`super::StableDiffusionPipeline`], as models will be constantly loaded and
 /// unloaded.
 ///
-/// ```ignore
-/// use std::sync::Arc;
-///
+/// ```no_run
+/// # fn main() -> anyhow::Result<()> {
 /// use pyke_diffusers::{
-/// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions,
-/// 	StableDiffusionMemoryOptimizedPipeline, StableDiffusionTxt2ImgOptions
+/// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionMemoryOptimizedPipeline,
+/// 	StableDiffusionOptions, StableDiffusionTxt2ImgOptions
 /// };
 ///
-/// let environment = Arc::new(OrtEnvironment::builder().build()?);
+/// let environment = OrtEnvironment::default().into_arc();
 /// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
-/// let pipeline =
-/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+/// let pipeline = StableDiffusionMemoryOptimizedPipeline::new(
+/// 	&environment,
+/// 	"./stable-diffusion-v1-5/",
+/// 	StableDiffusionOptions::default()
+/// )?;
 ///
 /// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct StableDiffusionMemoryOptimizedPipeline {
 	environment: Arc<Environment>,
@@ -56,9 +60,17 @@ impl StableDiffusionMemoryOptimizedPipeline {
 	/// Creates a new Stable Diffusion memory-optimized pipeline. This will check that the necessary models exist in
 	/// `root` but will not load them until a routine is run.
 	///
-	/// ```ignore
-	/// let pipeline =
-	/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
+	/// # use pyke_diffusers::{StableDiffusionMemoryOptimizedPipeline, StableDiffusionOptions, OrtEnvironment};
+	/// # let environment = OrtEnvironment::default().into_arc();
+	/// let pipeline = StableDiffusionMemoryOptimizedPipeline::new(
+	/// 	&environment,
+	/// 	"./stable-diffusion-v1-5/",
+	/// 	StableDiffusionOptions::default()
+	/// )?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: StableDiffusionOptions) -> anyhow::Result<Self> {
 		let root: PathBuf = root.into();
@@ -197,12 +209,18 @@ impl StableDiffusionMemoryOptimizedPipeline {
 	/// # Examples
 	///
 	/// Simple text-to-image:
-	/// ```ignore
+	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
+	/// # use pyke_diffusers::{EulerDiscreteScheduler, StableDiffusionMemoryOptimizedPipeline, StableDiffusionOptions, StableDiffusionTxt2ImgOptions, OrtEnvironment};
+	/// # let environment = OrtEnvironment::default().into_arc();
+	/// # let mut scheduler = EulerDiscreteScheduler::default();
 	/// let pipeline =
 	/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	///
 	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 	/// imgs[0].clone().into_rgb8().save("result.png")?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn txt2img<S: DiffusionScheduler>(
 		&self,

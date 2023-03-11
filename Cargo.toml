@@ -41,6 +41,7 @@ tokenizers = { version = "0.13", optional = true, default-features = false, feat
 [dev-dependencies]
 tokio = { version = "1.0", features = [ "full" ] }
 image = { version = "0.24", default-features = false, features = [ "png" ] }
+ort = { version = "1.14", default-features = false, features = [ "download-binaries" ] }
 
 requestty = "0.5"
 kdam = "0.3"

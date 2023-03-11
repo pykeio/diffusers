@@ -11,12 +11,12 @@ use crate::{schedulers::DiffusionScheduler, Prompt};
 /// A [Stable Diffusion](https://github.com/CompVis/stable-diffusion) pipeline designed to guide generation away from
 /// harmful or unsafe imagery.
 ///
-/// ```ignore
+/// ```no_run
 /// use std::sync::Arc;
 ///
 /// use pyke_diffusers::{
-/// 	EulerDiscreteScheduler, OrtEnvironment, SafeStableDiffusionPipeline, SchedulerOptimizedDefaults, StableDiffusionOptions,
-/// 	StableDiffusionTxt2ImgOptions
+/// 	EulerDiscreteScheduler, OrtEnvironment, SafeStableDiffusionPipeline, SchedulerOptimizedDefaults,
+/// 	StableDiffusionOptions, StableDiffusionTxt2ImgOptions
 /// };
 ///
 /// let environment = Arc::new(OrtEnvironment::builder().build()?);
@@ -34,7 +34,7 @@ pub struct SafeStableDiffusionPipeline {
 impl SafeStableDiffusionPipeline {
 	/// Creates a new Stable Diffusion pipeline, loading models from `root`.
 	///
-	/// ```ignore
+	/// ```no_run
 	/// let pipeline =
 	/// 	SafeStableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
 	/// ```
@@ -65,9 +65,14 @@ impl SafeStableDiffusionPipeline {
 		self.pipeline.encode_prompt(prompt, do_classifier_free_guidance, negative_prompt)
 	}
 
+	/// Decodes UNet latents via a cheap approximation into an array of [`image::DynamicImage`]s.
+	pub fn approximate_decode_latents(&self, latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
+		self.pipeline.approximate_decode_latents(latents)
+	}
+
 	/// Decodes UNet latents via the variational autoencoder into an array of [`image::DynamicImage`]s.
-	pub fn decode_latents(&self, latents: Array4<f32>, options: &StableDiffusionTxt2ImgOptions) -> anyhow::Result<Vec<DynamicImage>> {
-		self.pipeline.decode_latents(latents, options)
+	pub fn decode_latents(&self, latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
+		self.pipeline.decode_latents(latents)
 	}
 
 	/// Generates images from given text prompt(s). Returns a vector of [`image::DynamicImage`]s, using float32 buffers.

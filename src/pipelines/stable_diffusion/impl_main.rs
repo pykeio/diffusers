@@ -21,20 +21,21 @@ use crate::{
 
 /// A [Stable Diffusion](https://github.com/CompVis/stable-diffusion) pipeline.
 ///
-/// ```ignore
-/// use std::sync::Arc;
-///
+/// ```no_run
+/// # fn main() -> anyhow::Result<()> {
 /// use pyke_diffusers::{
-/// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline,
-/// 	StableDiffusionTxt2ImgOptions
+/// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions,
+/// 	StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 /// };
 ///
-/// let environment = Arc::new(OrtEnvironment::builder().build()?);
+/// let environment = OrtEnvironment::default().into_arc();
 /// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 /// let pipeline =
 /// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 ///
 /// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct StableDiffusionPipeline {
 	environment: Arc<Environment>,
@@ -53,9 +54,14 @@ pub struct StableDiffusionPipeline {
 impl StableDiffusionPipeline {
 	/// Creates a new Stable Diffusion pipeline, loading models from `root`.
 	///
-	/// ```ignore
+	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
+	/// # use pyke_diffusers::{StableDiffusionPipeline, StableDiffusionOptions, OrtEnvironment};
+	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: StableDiffusionOptions) -> anyhow::Result<Self> {
 		let root: PathBuf = root.into();
@@ -132,9 +138,15 @@ impl StableDiffusionPipeline {
 	///
 	/// An additional [`StableDiffusionOptions`] parameter can be used to move models to another device.
 	///
-	/// ```ignore
-	/// let mut pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
+	/// # use pyke_diffusers::{StableDiffusionPipeline, StableDiffusionOptions, OrtEnvironment};
+	/// # let environment = OrtEnvironment::default().into_arc();
+	/// let mut pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline = pipeline.replace("./waifu-diffusion-v1-3/", None)?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<StableDiffusionOptions>) -> anyhow::Result<Self> {
 		let new_root: PathBuf = new_root.into();
@@ -317,12 +329,18 @@ impl StableDiffusionPipeline {
 	/// # Examples
 	///
 	/// Simple text-to-image:
-	/// ```ignore
+	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
+	/// # use pyke_diffusers::{StableDiffusionPipeline, EulerDiscreteScheduler, StableDiffusionOptions, StableDiffusionTxt2ImgOptions, OrtEnvironment};
+	/// # let environment = OrtEnvironment::default().into_arc();
+	/// # let mut scheduler = EulerDiscreteScheduler::default();
 	/// let pipeline =
-	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", &StableDiffusionOptions::default())?;
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	///
-	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, &StableDiffusionTxt2ImgOptions::default())?;
+	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 	/// imgs[0].clone().into_rgb8().save("result.png")?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn txt2img<S: DiffusionScheduler>(
 		&self,

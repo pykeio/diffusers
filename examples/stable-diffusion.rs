@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use pyke_diffusers::{
 	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults,
 	StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions

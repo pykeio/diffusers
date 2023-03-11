@@ -6,20 +6,23 @@
 //! ONNX Runtime provides optimized inference for both CPUs and GPUs, including both NVIDIA & AMD GPUs via DirectML.
 //!
 //! `pyke-diffusers` is focused on ease of use, with an API closely modeled after Hugging Face diffusers:
-//! ```ignore
+//! ```no_run
+//! # fn main() -> anyhow::Result<()> {
 //! use std::sync::Arc;
 //!
 //! use pyke_diffusers::{
-//! 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline,
-//! 	StableDiffusionTxt2ImgOptions
+//! 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions,
+//! 	StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 //! };
 //!
-//! let environment = Arc::new(OrtEnvironment::builder().build()?);
+//! let environment = OrtEnvironment::default().into_arc();
 //! let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 //! let pipeline =
 //! 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 //!
 //! let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! See [`StableDiffusionPipeline`] for more info on the Stable Diffusion pipeline.
@@ -104,12 +107,13 @@ impl From<CuDNNConvolutionAlgorithmSearch> for String {
 /// Device options for the CUDA execution provider.
 ///
 /// For low-VRAM devices running Stable Diffusion v1, it's best to use a float16 model with the following parameters:
-/// ```ignore
-/// CUDADeviceOptions {
+/// ```
+/// # use pyke_diffusers::{ArenaExtendStrategy, CUDADeviceOptions};
+/// let options = CUDADeviceOptions {
 /// 	memory_limit: Some(3000000000),
 /// 	arena_extend_strategy: Some(ArenaExtendStrategy::SameAsRequested),
 /// 	..Default::default()
-/// }
+/// };
 /// ```
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct CUDADeviceOptions {
@@ -199,11 +203,12 @@ impl From<DiffusionDevice> for ExecutionProvider {
 ///
 /// For Stable Diffusion on GPUs with <6 GB VRAM, it may be favorable to place the text encoder, VAE decoder, and
 /// safety checker on the CPU so the much more intensive UNet can be placed on the GPU:
-/// ```ignore
-/// DiffusionDeviceControl {
+/// ```
+/// # use pyke_diffusers::{DiffusionDevice, DiffusionDeviceControl};
+/// let devices = DiffusionDeviceControl {
 /// 	unet: DiffusionDevice::CUDA(0, None),
 /// 	..Default::default()
-/// }
+/// };
 /// ```
 #[derive(Debug, Clone)]
 pub struct DiffusionDeviceControl {
@@ -222,7 +227,10 @@ pub struct DiffusionDeviceControl {
 impl DiffusionDeviceControl {
 	/// Constructs [`DiffusionDeviceControl`] with all models on the same device.
 	///
-	/// ```ignore
+	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
+	/// # use pyke_diffusers::{DiffusionDevice, DiffusionDeviceControl, OrtEnvironment, StableDiffusionPipeline, StableDiffusionOptions};
+	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let pipeline = StableDiffusionPipeline::new(
 	/// 	&environment,
 	/// 	"./stable-diffusion-v1-5/",
@@ -231,6 +239,8 @@ impl DiffusionDeviceControl {
 	/// 		..Default::default()
 	/// 	}
 	/// )?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	///
 	/// Note that if you are setting `memory_limit` in [`CUDADeviceOptions`], the memory limit is **per session** (aka

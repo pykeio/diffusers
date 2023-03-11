@@ -1,4 +1,4 @@
-use std::{cell::RefCell, env, sync::Arc};
+use std::{cell::RefCell, env};
 
 use kdam::{tqdm, BarExt};
 use pyke_diffusers::{
