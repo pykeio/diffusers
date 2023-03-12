@@ -36,7 +36,7 @@ use crate::{
 
 /// A [Stable Diffusion](https://github.com/CompVis/stable-diffusion) pipeline.
 ///
-/// ```no_run
+/// ```
 /// # fn main() -> anyhow::Result<()> {
 /// use pyke_diffusers::{
 /// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions,
@@ -46,7 +46,7 @@ use crate::{
 /// let environment = OrtEnvironment::default().into_arc();
 /// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 /// let pipeline =
-/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 ///
 /// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 /// # Ok(())
@@ -69,12 +69,12 @@ pub struct StableDiffusionPipeline {
 impl StableDiffusionPipeline {
 	/// Creates a new Stable Diffusion pipeline, loading models from `root`.
 	///
-	/// ```no_run
+	/// ```
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{StableDiffusionPipeline, StableDiffusionOptions, OrtEnvironment};
 	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let pipeline =
-	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 	/// # Ok(())
 	/// # }
 	/// ```
@@ -405,13 +405,13 @@ impl StableDiffusionPipeline {
 	/// # Examples
 	///
 	/// Simple text-to-image:
-	/// ```no_run
+	/// ```
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{StableDiffusionPipeline, EulerDiscreteScheduler, StableDiffusionOptions, StableDiffusionTxt2ImgOptions, OrtEnvironment};
 	/// # let environment = OrtEnvironment::default().into_arc();
 	/// # let mut scheduler = EulerDiscreteScheduler::default();
 	/// let pipeline =
-	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 	///
 	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 	/// imgs[0].clone().into_rgb8().save("result.png")?;

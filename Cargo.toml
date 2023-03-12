@@ -29,7 +29,7 @@ lazy_static = "1.4"
 image = { version = "0.24", default-features = false }
 rand = "0.8"
 cfg-if = "1.0"
-ort = { version = "1.14", default-features = false }
+ort = { git = "https://github.com/pykeio/ort.git", default-features = false }
 ndarray_einsum_beta = "0.7.0"
 
 GSL = { version = "6.0", optional = true }
@@ -41,7 +41,7 @@ tokenizers = { version = "0.13", optional = true, default-features = false, feat
 [dev-dependencies]
 tokio = { version = "1.0", features = [ "full" ] }
 image = { version = "0.24", default-features = false, features = [ "png" ] }
-ort = { version = "1.14", default-features = false, features = [ "download-binaries" ] }
+ort = { git = "https://github.com/pykeio/ort.git", default-features = false, features = [ "download-binaries" ] }
 
 requestty = "0.5"
 kdam = "0.3"
@@ -55,14 +55,16 @@ default = [ "ort-download-binaries", "common-schedulers", "ort-copy-dylibs", "st
 
 tokenizers = [ "dep:tokenizers" ]
 
+ort-load-dynamic = [ "ort/load-dynamic" ]
 ort-download-binaries = [ "ort/download-binaries" ]
+ort-copy-dylibs = [ "ort/copy-dylibs" ]
+
 ort-cuda = [ "ort/cuda" ]
 ort-tensorrt = [ "ort/tensorrt" ]
 ort-rocm = [ "ort/rocm" ]
 ort-onednn = [ "ort/onednn" ]
 ort-directml = [ "ort/directml" ]
 ort-coreml = [ "ort/coreml" ]
-ort-copy-dylibs = [ "ort/copy-dylibs" ]
 
 scheduler-lms = [ "dep:GSL" ]
 scheduler-ddim = []

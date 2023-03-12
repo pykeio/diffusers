@@ -9,3 +9,5 @@ __pycache__
 **/diffusers.json
 Cargo.lock
 models/
+!tests/**
+/result.png

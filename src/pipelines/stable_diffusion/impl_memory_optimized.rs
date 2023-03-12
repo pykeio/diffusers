@@ -15,7 +15,8 @@
 use std::{fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
-use ndarray::{concatenate, Array1, Array4, ArrayD, Axis, IxDyn};
+use ndarray::{concatenate, Array1, Array2, Array4, ArrayD, Axis, IxDyn};
+use ndarray_einsum_beta::einsum;
 use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
 use num_traits::ToPrimitive;
 use ort::{
@@ -42,7 +43,7 @@ use crate::{
 /// be abysmal compared to the standard [`super::StableDiffusionPipeline`], as models will be constantly loaded and
 /// unloaded.
 ///
-/// ```no_run
+/// ```
 /// # fn main() -> anyhow::Result<()> {
 /// use pyke_diffusers::{
 /// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionMemoryOptimizedPipeline,
@@ -53,7 +54,7 @@ use crate::{
 /// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 /// let pipeline = StableDiffusionMemoryOptimizedPipeline::new(
 /// 	&environment,
-/// 	"./stable-diffusion-v1-5/",
+/// 	"tests/stable-diffusion",
 /// 	StableDiffusionOptions::default()
 /// )?;
 ///
@@ -74,13 +75,13 @@ impl StableDiffusionMemoryOptimizedPipeline {
 	/// Creates a new Stable Diffusion memory-optimized pipeline. This will check that the necessary models exist in
 	/// `root` but will not load them until a routine is run.
 	///
-	/// ```no_run
+	/// ```
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{StableDiffusionMemoryOptimizedPipeline, StableDiffusionOptions, OrtEnvironment};
 	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let pipeline = StableDiffusionMemoryOptimizedPipeline::new(
 	/// 	&environment,
-	/// 	"./stable-diffusion-v1-5/",
+	/// 	"tests/stable-diffusion",
 	/// 	StableDiffusionOptions::default()
 	/// )?;
 	/// # Ok(())
@@ -192,8 +193,22 @@ impl StableDiffusionMemoryOptimizedPipeline {
 		))
 	}
 
+	/// Decodes UNet latents via a cheap approximation into an array of [`image::DynamicImage`]s.
+	pub fn approximate_decode_latents(&self, latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
+		let coefs = Array2::from_shape_vec((4, 3), vec![0.298, 0.207, 0.208, 0.187, 0.286, 0.173, -0.158, 0.189, 0.264, -0.184, -0.271, -0.473])?;
+		let approx = einsum("blxy,lr->bxyr", &[&latents, &coefs]).expect("einsum error");
+		let mut images = Vec::new();
+		for approx_chunk in approx.axis_iter(Axis(0)) {
+			let approx_chunk = approx_chunk.insert_axis(Axis(0)).into_dimensionality()?;
+			let approx_chunk = approx_chunk.to_owned() * 1.2;
+			let image = self.to_image(approx_chunk.shape()[1] as _, approx_chunk.shape()[2] as _, &approx_chunk)?;
+			images.push(image);
+		}
+		Ok(images)
+	}
+
 	/// Decodes UNet latents via the variational autoencoder into an array of [`image::DynamicImage`]s.
-	pub fn decode_latents(&self, mut latents: Array4<f32>, options: &StableDiffusionTxt2ImgOptions) -> anyhow::Result<Vec<DynamicImage>> {
+	pub fn decode_latents(&self, mut latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
 		latents = 1.0 / 0.18215 * latents;
 
 		let vae_decoder = self.load_vae_decoder()?;
@@ -206,7 +221,7 @@ impl StableDiffusionMemoryOptimizedPipeline {
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
 			let f_image = f_image.permuted_axes([0, 2, 3, 1]).map(|f| (f / 2.0 + 0.5).clamp(0.0, 1.0));
 
-			let image = self.to_image(options.width, options.height, &f_image)?;
+			let image = self.to_image(f_image.shape()[1] as _, f_image.shape()[2] as _, &f_image)?;
 			images.push(image);
 		}
 
@@ -223,13 +238,13 @@ impl StableDiffusionMemoryOptimizedPipeline {
 	/// # Examples
 	///
 	/// Simple text-to-image:
-	/// ```no_run
+	/// ```
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{EulerDiscreteScheduler, StableDiffusionMemoryOptimizedPipeline, StableDiffusionOptions, StableDiffusionTxt2ImgOptions, OrtEnvironment};
 	/// # let environment = OrtEnvironment::default().into_arc();
 	/// # let mut scheduler = EulerDiscreteScheduler::default();
 	/// let pipeline =
-	/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// 	StableDiffusionMemoryOptimizedPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 	///
 	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
 	/// imgs[0].clone().into_rgb8().save("result.png")?;
@@ -263,10 +278,13 @@ impl StableDiffusionMemoryOptimizedPipeline {
 		scheduler.set_timesteps(steps);
 		latents *= scheduler.init_noise_sigma();
 
+		let timesteps = scheduler.timesteps().to_owned();
+		let num_warmup_steps = timesteps.len() - options.steps * S::order();
+
 		{
 			let unet = self.load_unet()?;
 
-			for (i, t) in scheduler.timesteps().to_owned().indexed_iter() {
+			for (i, t) in timesteps.to_owned().indexed_iter() {
 				let latent_model_input = if do_classifier_free_guidance {
 					concatenate![Axis(0), latents, latents]
 				} else {
@@ -299,16 +317,21 @@ impl StableDiffusionMemoryOptimizedPipeline {
 				latents = scheduler_output.prev_sample().to_owned();
 
 				if let Some(callback) = options.callback.as_ref() {
-					let keep_going = match callback {
-						StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
-						StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
-						StableDiffusionCallback::Decoded { frequency, cb } if i % frequency == 0 => {
-							cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone(), &options)?)
+					if i == timesteps.len() - 1 || ((i + 1) > num_warmup_steps && (i + 1) % S::order() == 0) {
+						let keep_going = match callback {
+							StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
+							StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
+							StableDiffusionCallback::Decoded { frequency, cb } if i != 0 && i % frequency == 0 => {
+								cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone())?)
+							}
+							StableDiffusionCallback::ApproximateDecoded { frequency, cb } if i != 0 && i % frequency == 0 => {
+								cb(i, t.to_f32().unwrap(), self.approximate_decode_latents(latents.clone())?)
+							}
+							_ => true
+						};
+						if !keep_going {
+							break;
 						}
-						_ => true
-					};
-					if !keep_going {
-						break;
 					}
 				}
 			}
@@ -316,6 +339,6 @@ impl StableDiffusionMemoryOptimizedPipeline {
 			std::mem::drop(unet);
 		}
 
-		self.decode_latents(latents, &options)
+		self.decode_latents(latents)
 	}
 }
