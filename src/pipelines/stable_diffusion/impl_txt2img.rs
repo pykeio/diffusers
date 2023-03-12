@@ -25,6 +25,7 @@ impl Default for StableDiffusionTxt2ImgOptions {
 	}
 }
 
+// builder for options
 impl StableDiffusionTxt2ImgOptions {
 	///  Set the size of the image. **Must be divisible by 8.**
 	pub fn with_size(self, height: u32, width: u32) -> OrtResult<Self> {
@@ -67,22 +68,21 @@ impl StableDiffusionTxt2ImgOptions {
 		self.negative_prompt = negative_prompt.map(|p| p.into());
 		self
 	}
-
 	/// Set the seed to use when first generating noise. The same seed with the same scheduler, prompt, & guidance
 	pub fn with_seed(mut self, seed: u64) -> Self {
 		self.seed = Some(seed);
 		self
 	}
+	/// Set the scale of the guidance. Higher values will result in more guidance, lower values will result in less.
 	pub fn with_guidance_scale(mut self, guidance_scale: f32) -> Self {
 		self.guidance_scale = guidance_scale;
 		self
 	}
-	/// Creates a new `StableDiffusionTxt2ImgOptions` with the default options.
-	///
-	/// # Arguments
-	///
-	/// * `frequency`: The frequency at which to call the callback, in steps.
-	/// * `callback`: The callback to call every `frequency` steps.
+}
+
+// builder for callbacks
+impl StableDiffusionTxt2ImgOptions {
+	#[doc = include_str!("callback-progress.md")]
 	pub fn callback_progress<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32) -> bool + 'static
@@ -90,6 +90,7 @@ impl StableDiffusionTxt2ImgOptions {
 		self.callback = Some(StableDiffusionCallback::Progress { frequency, cb: Box::new(callback) });
 		self
 	}
+	#[doc = include_str!("callback-latents.md")]
 	pub fn callback_latents<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Array4<f32>) -> bool + 'static
@@ -97,6 +98,7 @@ impl StableDiffusionTxt2ImgOptions {
 		self.callback = Some(StableDiffusionCallback::Latents { frequency, cb: Box::new(callback) });
 		self
 	}
+	#[doc = include_str!("callback-decode-image.md")]
 	pub fn callback_decoded<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Vec<DynamicImage>) -> bool + 'static
@@ -112,6 +114,9 @@ impl StableDiffusionTxt2ImgOptions {
 		self.callback = Some(StableDiffusionCallback::ApproximateDecoded { frequency, cb: Box::new(callback) });
 		self
 	}
+}
+
+impl StableDiffusionTxt2ImgOptions {
 	/// Generates images from given text prompt(s). Returns a vector of [`image::DynamicImage`]s, using float32 buffers.
 	/// In most cases, you'll want to convert the images into RGB8 via `img.clone().into_rgb8().`
 	///
