@@ -171,13 +171,10 @@ impl StableDiffusionPipeline {
 			let path = new_root.join(new_config.text_encoder.path.clone());
 			self.replace_text_encoder(path)?
 		}
-		if self.config.hashes.vae_decoder != new_config.hashes.vae_decoder {
-			let path = new_root.join(new_config.vae.decoder.clone());
-			self.replace_vae_decoder(path)?
-		}
-		if self.config.hashes.vae_encoder != new_config.hashes.vae_encoder {
-			let path = new_config.vae.encoder.as_ref().map(|s| new_root.join(s));
-			self.replace_vae_encoder(path)?
+		if self.config.hashes.vae_decoder != new_config.hashes.vae_decoder || self.config.hashes.vae_encoder != new_config.hashes.vae_encoder {
+			let decoder = new_root.join(new_config.vae.decoder.clone());
+			let encoder = new_config.vae.encoder.as_ref().map(|s| new_root.join(s));
+			self.replace_vae(decoder, encoder)?
 		}
 		if self.config.hashes.safety_checker != new_config.hashes.safety_checker {
 			let path = new_config.safety_checker.as_ref().map(|s| new_root.join(&s.path));
@@ -200,7 +197,24 @@ impl StableDiffusionPipeline {
 
 		Ok(self)
 	}
+
 	/// Replace unet model at runtime, ensuring that the model is using the same config as before.
+	///
+	/// # Arguments
+	///
+	/// * `path`: Path to the new unet model
+	///
+	/// # Examples
+	///
+	/// load raw stable diffusion pipeline and replace anything unet model
+	///
+	/// ```no_run
+	/// # use pyke_diffusers::{OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline};
+	/// let environment = OrtEnvironment::default().into_arc();
+	/// let mut pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// pipeline.replace_unet("./anything/unet.onnx")?;
+	/// ```
 	pub fn replace_unet<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
 		self.unet = SessionBuilder::new(&self.environment)?
 			.with_execution_providers([self.options.devices.unet.clone().into()])?
@@ -214,39 +228,54 @@ impl StableDiffusionPipeline {
 			.with_model_from_file(path)?;
 		Ok(())
 	}
-	/// Replace vae decode model at runtime, ensuring that the model is using the same config as before.
-	pub fn replace_vae_decoder<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
+
+	/// Replace vae model at runtime, ensuring that the model is using the same config as before.
+	///
+	/// # Arguments
+	///
+	/// * `decoder`: Path to the new vae decoder model, this is required
+	/// * `encoder`: Path to the new vae encoder model, this is optional
+	///
+	/// # Examples
+	///
+	/// load raw stable diffusion pipeline and replace with anything vae model.
+	///
+	/// ```no_run
+	/// # use pyke_diffusers::{StableDiffusionOptions, StableDiffusionPipeline, OrtEnvironment};
+	/// let environment = OrtEnvironment::default().into_arc();
+	/// let mut pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// pipeline.replace_vae("./anything/vae-decoder.onnx", Some("./anything/vae-encoder.onnx"))?;
+	/// ```
+	pub fn replace_vae<D, E>(&mut self, decoder: D, encoder: Option<E>) -> OrtResult<()>
+	where
+		E: AsRef<Path>,
+		D: AsRef<Path>
+	{
 		self.vae_decoder = SessionBuilder::new(&self.environment)?
 			.with_execution_providers([self.options.devices.vae_decoder.clone().into()])?
-			.with_model_from_file(path)?;
-		Ok(())
-	}
-	/// Replace vae encode model at runtime, ensuring that the model is using the same config as before.
-	pub fn replace_vae_encoder<P: AsRef<Path>>(&mut self, path: Option<P>) -> OrtResult<()> {
-		match path {
-			Some(s) => {
-				self.vae_encoder = Some(
-					SessionBuilder::new(&self.environment)?
-						.with_execution_providers([self.options.devices.vae_encoder.clone().into()])?
-						.with_model_from_file(s)?
-				);
-			}
-			None => self.vae_encoder = None
-		}
+			.with_model_from_file(decoder.as_ref())?;
+		// unable to use ? in map, so use match here
+		self.vae_encoder = match encoder {
+			Some(s) => Some(
+				SessionBuilder::new(&self.environment)?
+					.with_execution_providers([self.options.devices.vae_encoder.clone().into()])?
+					.with_model_from_file(s)?
+			),
+			None => None
+		};
 		Ok(())
 	}
 	/// Replace safety checker at runtime, ensuring that the model is using the same config as before.
 	pub fn replace_safety_checker<P: AsRef<Path>>(&mut self, path: Option<P>) -> OrtResult<()> {
-		match path {
-			Some(s) => {
-				self.safety_checker = Some(
-					SessionBuilder::new(&self.environment)?
-						.with_execution_providers([self.options.devices.vae_encoder.clone().into()])?
-						.with_model_from_file(s)?
-				);
-			}
-			None => self.safety_checker = None
-		}
+		self.safety_checker = match path {
+			Some(s) => Some(
+				SessionBuilder::new(&self.environment)?
+					.with_execution_providers([self.options.devices.safety_checker.clone().into()])?
+					.with_model_from_file(s)?
+			),
+			None => None
+		};
 		Ok(())
 	}
 
