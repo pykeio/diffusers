@@ -223,11 +223,14 @@ impl StableDiffusionPipeline {
 	/// load raw stable diffusion pipeline and replace anything unet model
 	///
 	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline};
 	/// let environment = OrtEnvironment::default().into_arc();
 	/// let mut pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline.replace_unet("./anything/unet.onnx")?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn replace_unet<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
 		self.unet = SessionBuilder::new(&self.environment)?
@@ -255,11 +258,14 @@ impl StableDiffusionPipeline {
 	/// load raw stable diffusion pipeline and replace with anything vae model.
 	///
 	/// ```no_run
+	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{StableDiffusionOptions, StableDiffusionPipeline, OrtEnvironment};
 	/// let environment = OrtEnvironment::default().into_arc();
 	/// let mut pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline.replace_vae("./anything/vae-decoder.onnx", Some("./anything/vae-encoder.onnx"))?;
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn replace_vae<D, E>(&mut self, decoder: D, encoder: Option<E>) -> OrtResult<()>
 	where
