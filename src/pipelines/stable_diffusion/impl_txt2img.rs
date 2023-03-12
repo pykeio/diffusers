@@ -3,8 +3,7 @@ use ndarray::{concatenate, Array1, Array4, ArrayD, Axis, IxDyn};
 use ndarray_rand::rand_distr::StandardNormal;
 use ndarray_rand::RandomExt;
 use num_traits::{ToPrimitive, Zero};
-use ort::tensor::{FromArray, InputTensor, OrtOwnedTensor, TensorElementDataType};
-use ort::{OrtError, OrtResult};
+use ort::tensor::{FromArray, InputTensor, OrtOwnedTensor};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
@@ -28,37 +27,31 @@ impl Default for StableDiffusionTxt2ImgOptions {
 // builder for options
 impl StableDiffusionTxt2ImgOptions {
 	///  Set the size of the image. **Must be divisible by 8.**
-	pub fn with_size(self, height: u32, width: u32) -> OrtResult<Self> {
+	pub fn with_size(self, height: u32, width: u32) -> anyhow::Result<Self> {
 		self.with_width(width)?.with_height(height)
 	}
 	///  Set the width of the image. **Must be divisible by 8.**
-	pub fn with_width(mut self, width: u32) -> OrtResult<Self> {
+	pub fn with_width(mut self, width: u32) -> anyhow::Result<Self> {
 		if width % 8 != 0 || width.is_zero() {
-			Err(OrtError::DataTypeMismatch {
-				actual: TensorElementDataType::Float32,
-				requested: TensorElementDataType::Float32
-			})?
+			anyhow::bail!("width must be positive integer that divisible by 8")
 		}
 		self.width = width;
 		Ok(self)
 	}
 	///  Set the height of the image. **Must be divisible by 8.**
-	pub fn with_height(mut self, height: u32) -> OrtResult<Self> {
+	pub fn with_height(mut self, height: u32) -> anyhow::Result<Self> {
 		if height % 8 != 0 || height.is_zero() {
-			Err(OrtError::DataTypeMismatch {
-				actual: TensorElementDataType::Float32,
-				requested: TensorElementDataType::Float32
-			})?
+			anyhow::bail!("height must be positive integer that divisible by 8")
 		}
 		self.height = height;
 		Ok(self)
 	}
-	/// Set the number of steps to take to generate the image. More steps typically yields higher quality images.
+	/// The number of steps to take to generate the image. More steps typically yields higher quality images.
 	pub fn with_steps(mut self, steps: usize) -> Self {
 		self.steps = steps;
 		self
 	}
-	/// Set the prompt(s) to use when generating the image. Typically used to produce classifier-free guidance.
+	/// Set the prompt(s) to use when generating the image.
 	pub fn with_prompts<P, N>(mut self, positive_prompt: P, negative_prompt: Option<N>) -> Self
 	where
 		P: Into<Prompt>,
@@ -68,12 +61,19 @@ impl StableDiffusionTxt2ImgOptions {
 		self.negative_prompt = negative_prompt.map(|p| p.into());
 		self
 	}
-	/// Set the seed to use when first generating noise. The same seed with the same scheduler, prompt, & guidance
+	/// Set the seed to use when first generating noise.
 	pub fn with_seed(mut self, seed: u64) -> Self {
 		self.seed = Some(seed);
 		self
 	}
-	/// Set the scale of the guidance. Higher values will result in more guidance, lower values will result in less.
+	/// Use a random seed, so that each run generates a different image.
+	pub fn with_random_seed(mut self) -> Self {
+		self.seed = None;
+		self
+	}
+	/// The 'guidance scale' for classifier-free guidance. A lower guidance scale gives the model more freedom, but the
+	/// output may not match the prompt. A higher guidance scale mean the model will match the prompt(s) more strictly,
+	/// but may introduce artifacts; `7.5` is a good balance.
 	pub fn with_guidance_scale(mut self, guidance_scale: f32) -> Self {
 		self.guidance_scale = guidance_scale;
 		self
