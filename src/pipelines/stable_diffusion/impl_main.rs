@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
@@ -163,47 +164,21 @@ impl StableDiffusionPipeline {
 		let options = options.unwrap_or_else(|| self.options.clone());
 
 		if self.config.hashes.unet != new_config.hashes.unet {
-			std::mem::drop(self.unet);
-			self.unet = SessionBuilder::new(&self.environment)?
-				.with_execution_providers([self.options.devices.unet.clone().into()])?
-				.with_model_from_file(new_root.join(new_config.unet.path.clone()))?;
+			let path = new_root.join(new_config.unet.path.clone());
+			self.replace_unet(path)?
 		}
 		if self.config.hashes.text_encoder != new_config.hashes.text_encoder {
-			std::mem::drop(self.text_encoder);
-			self.text_encoder = SessionBuilder::new(&self.environment)?
-				.with_execution_providers([options.devices.text_encoder.clone().into()])?
-				.with_model_from_file(new_root.join(new_config.text_encoder.path.clone()))?;
+			let path = new_root.join(new_config.text_encoder.path.clone());
+			self.replace_text_encoder(path)?
 		}
-		if self.config.hashes.vae_decoder != new_config.hashes.vae_decoder {
-			std::mem::drop(self.vae_decoder);
-			self.vae_decoder = SessionBuilder::new(&self.environment)?
-				.with_execution_providers([options.devices.vae_decoder.clone().into()])?
-				.with_model_from_file(new_root.join(new_config.vae.decoder.clone()))?;
-		}
-		if self.config.hashes.vae_encoder != new_config.hashes.vae_encoder {
-			std::mem::drop(self.vae_encoder);
-			self.vae_encoder = new_config
-				.vae
-				.encoder
-				.as_ref()
-				.map(|path| -> OrtResult<Session> {
-					SessionBuilder::new(&self.environment)?
-						.with_execution_providers([options.devices.vae_encoder.clone().into()])?
-						.with_model_from_file(new_root.join(path))
-				})
-				.transpose()?;
+		if self.config.hashes.vae_decoder != new_config.hashes.vae_decoder || self.config.hashes.vae_encoder != new_config.hashes.vae_encoder {
+			let decoder = new_root.join(new_config.vae.decoder.clone());
+			let encoder = new_config.vae.encoder.as_ref().map(|s| new_root.join(s));
+			self.replace_vae(decoder, encoder)?
 		}
 		if self.config.hashes.safety_checker != new_config.hashes.safety_checker {
-			std::mem::drop(self.safety_checker);
-			self.safety_checker = new_config
-				.safety_checker
-				.as_ref()
-				.map(|safety_checker| -> OrtResult<Session> {
-					SessionBuilder::new(&self.environment)?
-						.with_execution_providers([options.devices.safety_checker.clone().into()])?
-						.with_model_from_file(new_root.join(safety_checker.path.clone()))
-				})
-				.transpose()?;
+			let path = new_config.safety_checker.as_ref().map(|s| new_root.join(&s.path));
+			self.replace_safety_checker(path)?
 		}
 
 		self.tokenizer = match &new_config.tokenizer {
@@ -221,6 +196,87 @@ impl StableDiffusionPipeline {
 		self.config = new_config;
 
 		Ok(self)
+	}
+
+	/// Replace unet model at runtime, ensuring that the model is using the same config as before.
+	///
+	/// # Arguments
+	///
+	/// * `path`: Path to the new unet model
+	///
+	/// # Examples
+	///
+	/// load raw stable diffusion pipeline and replace anything unet model
+	///
+	/// ```no_run
+	/// # use pyke_diffusers::{OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline};
+	/// let environment = OrtEnvironment::default().into_arc();
+	/// let mut pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// pipeline.replace_unet("./anything/unet.onnx")?;
+	/// ```
+	pub fn replace_unet<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
+		self.unet = SessionBuilder::new(&self.environment)?
+			.with_execution_providers([self.options.devices.unet.clone().into()])?
+			.with_model_from_file(path)?;
+		Ok(())
+	}
+	/// Replace text encode model at runtime, ensuring that the model is using the same config as before.
+	pub fn replace_text_encoder<P: AsRef<Path>>(&mut self, path: P) -> OrtResult<()> {
+		self.text_encoder = SessionBuilder::new(&self.environment)?
+			.with_execution_providers([self.options.devices.text_encoder.clone().into()])?
+			.with_model_from_file(path)?;
+		Ok(())
+	}
+
+	/// Replace vae model at runtime, ensuring that the model is using the same config as before.
+	///
+	/// # Arguments
+	///
+	/// * `decoder`: Path to the new vae decoder model, this is required
+	/// * `encoder`: Path to the new vae encoder model, this is optional
+	///
+	/// # Examples
+	///
+	/// load raw stable diffusion pipeline and replace with anything vae model.
+	///
+	/// ```no_run
+	/// # use pyke_diffusers::{StableDiffusionOptions, StableDiffusionPipeline, OrtEnvironment};
+	/// let environment = OrtEnvironment::default().into_arc();
+	/// let mut pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
+	/// pipeline.replace_vae("./anything/vae-decoder.onnx", Some("./anything/vae-encoder.onnx"))?;
+	/// ```
+	pub fn replace_vae<D, E>(&mut self, decoder: D, encoder: Option<E>) -> OrtResult<()>
+	where
+		E: AsRef<Path>,
+		D: AsRef<Path>
+	{
+		self.vae_decoder = SessionBuilder::new(&self.environment)?
+			.with_execution_providers([self.options.devices.vae_decoder.clone().into()])?
+			.with_model_from_file(decoder.as_ref())?;
+		// unable to use ? in map, so use match here
+		self.vae_encoder = match encoder {
+			Some(s) => Some(
+				SessionBuilder::new(&self.environment)?
+					.with_execution_providers([self.options.devices.vae_encoder.clone().into()])?
+					.with_model_from_file(s)?
+			),
+			None => None
+		};
+		Ok(())
+	}
+	/// Replace safety checker at runtime, ensuring that the model is using the same config as before.
+	pub fn replace_safety_checker<P: AsRef<Path>>(&mut self, path: Option<P>) -> OrtResult<()> {
+		self.safety_checker = match path {
+			Some(s) => Some(
+				SessionBuilder::new(&self.environment)?
+					.with_execution_providers([self.options.devices.safety_checker.clone().into()])?
+					.with_model_from_file(s)?
+			),
+			None => None
+		};
+		Ok(())
 	}
 
 	/// Encodes the given prompt(s) into an array of text embeddings to be used as input to the UNet.
