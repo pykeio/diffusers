@@ -7,7 +7,7 @@ use crate::{ImagePreprocessing, Prompt, StableDiffusionCallback, StableDiffusion
 impl Default for StableDiffusionImg2ImgOptions {
 	fn default() -> Self {
 		Self {
-			reference_image: Default::default(),
+			reference_image: Array4::default((1, 1, 1, 1)),
 			preprocessing: ImagePreprocessing::CropFill,
 			target_height: 512,
 			target_width: 512,

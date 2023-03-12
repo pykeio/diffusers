@@ -156,7 +156,7 @@ pub struct StableDiffusionTxt2ImgOptions {
 	pub callback: Option<StableDiffusionCallback>
 }
 
-/// Options for the Stable Diffusion text-to-image pipeline.
+/// Options for the Stable Diffusion image-to-image pipeline.
 #[derive(Debug)]
 pub struct StableDiffusionImg2ImgOptions {
 	reference_image: Array4<f32>,

@@ -17,7 +17,7 @@ impl Default for StableDiffusionTxt2ImgOptions {
 			guidance_scale: 7.5,
 			steps: 50,
 			seed: None,
-			positive_prompt: Default::default(),
+			positive_prompt: Prompt::default(),
 			negative_prompt: None,
 			callback: None
 		}
