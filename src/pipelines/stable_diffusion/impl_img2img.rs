@@ -1,6 +1,6 @@
 use image::imageops::FilterType;
 use image::{DynamicImage, Rgb32FImage};
-use ndarray::Array4;
+use ndarray::{Array4, Ix};
 
 use crate::{ImagePreprocessing, Prompt, StableDiffusionCallback, StableDiffusionImg2ImgOptions, StableDiffusionTxt2ImgOptions};
 
@@ -9,8 +9,6 @@ impl Default for StableDiffusionImg2ImgOptions {
 		Self {
 			reference_image: Array4::default((1, 1, 1, 1)),
 			preprocessing: ImagePreprocessing::CropFill,
-			target_height: 512,
-			target_width: 512,
 			text_config: StableDiffusionTxt2ImgOptions::default()
 		}
 	}
@@ -18,8 +16,16 @@ impl Default for StableDiffusionImg2ImgOptions {
 
 // builder for options
 impl StableDiffusionImg2ImgOptions {
+	/// Get the size of each reference image.
+	pub fn get_size(&self) -> (u32, u32) {
+		(self.text_config.width, self.text_config.height)
+	}
+	/// Get the dimensions of reference images.
+	pub fn get_dimensions(&self) -> (Ix, Ix, Ix, Ix) {
+		self.reference_image.dim()
+	}
 	/// Set the size of the image. **Size will be rounded to a multiple of 8.**
-	pub fn with_size(self, height: u32, width: u32) -> Self {
+	pub fn with_size(self, width: u32, height: u32) -> Self {
 		self.with_width(width).with_height(height)
 	}
 	/// Set the width of the image. **Width will be rounded to a multiple of 8.**
@@ -76,9 +82,9 @@ impl StableDiffusionImg2ImgOptions {
 	pub fn with_image(mut self, image: &DynamicImage, batch: usize) -> Self {
 		// whc -> nchw
 		let image = self.img_norm(image);
-		let shape = [batch, 3, self.target_height as usize, self.target_width as usize];
-		self.reference_image = Array4::from_shape_fn(shape, |(_, w, h, c)| {
-			let pixel = image.get_pixel(h as u32, w as u32);
+		let shape = [batch, 3, self.text_config.height as usize, self.text_config.width as usize];
+		self.reference_image = Array4::from_shape_fn(shape, |(_, c, h, w)| {
+			let pixel = image.get_pixel(w as u32, h as u32);
 			match c {
 				0 => pixel.0[0],
 				1 => pixel.0[1],
@@ -92,9 +98,9 @@ impl StableDiffusionImg2ImgOptions {
 	pub fn with_images(mut self, images: &[DynamicImage]) -> Self {
 		// nwhc -> nchw
 		let images = images.iter().map(|image| self.img_norm(image)).collect::<Vec<_>>();
-		let shape = [images.len(), 3, self.target_height as usize, self.target_width as usize];
-		self.reference_image = Array4::from_shape_fn(shape, |(n, w, h, c)| {
-			let pixel = images[n].get_pixel(h as u32, w as u32);
+		let shape = [images.len(), 3, self.text_config.height as usize, self.text_config.width as usize];
+		self.reference_image = Array4::from_shape_fn(shape, |(n, c, h, w)| {
+			let pixel = images[n].get_pixel(w as u32, h as u32);
 			match c {
 				0 => pixel.0[0],
 				1 => pixel.0[1],
@@ -106,8 +112,8 @@ impl StableDiffusionImg2ImgOptions {
 	}
 	fn img_norm(&self, image: &DynamicImage) -> Rgb32FImage {
 		let img = match self.preprocessing {
-			ImagePreprocessing::Resize => image.resize_exact(self.target_width, self.target_height, FilterType::Lanczos3),
-			ImagePreprocessing::CropFill => image.resize_to_fill(self.target_width, self.target_height, FilterType::Lanczos3)
+			ImagePreprocessing::Resize => image.resize_exact(self.text_config.width, self.text_config.height, FilterType::Lanczos3),
+			ImagePreprocessing::CropFill => image.resize_to_fill(self.text_config.width, self.text_config.height, FilterType::Lanczos3)
 		};
 		// normalize to [0, 1]
 		img.to_rgb32f()

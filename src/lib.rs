@@ -50,8 +50,6 @@
 #![warn(clippy::correctness, clippy::suspicious, clippy::complexity, clippy::perf, clippy::style)]
 #![allow(clippy::tabs_in_doc_comments)]
 
-extern crate core;
-
 #[cfg(feature = "tokenizers")]
 #[doc(hidden)]
 pub mod clip;

@@ -161,8 +161,6 @@ pub struct StableDiffusionTxt2ImgOptions {
 pub struct StableDiffusionImg2ImgOptions {
 	reference_image: Array4<f32>,
 	preprocessing: ImagePreprocessing,
-	target_height: u32,
-	target_width: u32,
 	text_config: StableDiffusionTxt2ImgOptions
 }
 

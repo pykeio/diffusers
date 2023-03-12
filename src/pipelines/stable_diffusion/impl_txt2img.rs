@@ -27,7 +27,7 @@ impl Default for StableDiffusionTxt2ImgOptions {
 // builder for options
 impl StableDiffusionTxt2ImgOptions {
 	/// Set the size of the image. **Size will be rounded to a multiple of 8.**
-	pub fn with_size(self, height: u32, width: u32) -> Self {
+	pub fn with_size(self, width: u32, height: u32) -> Self {
 		self.with_width(width).with_height(height)
 	}
 	/// Set the width of the image. **Width will be rounded to a multiple of 8.**
