@@ -60,7 +60,7 @@ pub struct StableDiffusionPipeline {
 	vae_decoder: Session,
 	text_encoder: Session,
 	tokenizer: CLIPStandardTokenizer,
-	unet: Session,
+	pub(crate) unet: Session,
 	safety_checker: Option<Session>,
 	#[allow(dead_code)]
 	feature_extractor: Option<()>
