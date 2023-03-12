@@ -2,7 +2,7 @@ use image::DynamicImage;
 use ndarray::{concatenate, Array1, Array4, ArrayD, Axis, IxDyn};
 use ndarray_rand::rand_distr::StandardNormal;
 use ndarray_rand::RandomExt;
-use num_traits::{ToPrimitive, Zero};
+use num_traits::ToPrimitive;
 use ort::tensor::{FromArray, InputTensor, OrtOwnedTensor};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -26,25 +26,21 @@ impl Default for StableDiffusionTxt2ImgOptions {
 
 // builder for options
 impl StableDiffusionTxt2ImgOptions {
-	///  Set the size of the image. **Must be divisible by 8.**
-	pub fn with_size(self, height: u32, width: u32) -> anyhow::Result<Self> {
-		self.with_width(width)?.with_height(height)
+	/// Set the size of the image. **Size will be rounded to a multiple of 8.**
+	pub fn with_size(self, height: u32, width: u32) -> Self {
+		self.with_width(width).with_height(height)
 	}
-	///  Set the width of the image. **Must be divisible by 8.**
-	pub fn with_width(mut self, width: u32) -> anyhow::Result<Self> {
-		if width % 8 != 0 || width.is_zero() {
-			anyhow::bail!("width must be positive integer that divisible by 8")
-		}
-		self.width = width;
-		Ok(self)
+	/// Set the width of the image. **Width will be rounded to a multiple of 8.**
+	#[inline]
+	pub fn with_width(mut self, width: u32) -> Self {
+		self.width = (width / 8).max(1) * 8;
+		self
 	}
-	///  Set the height of the image. **Must be divisible by 8.**
-	pub fn with_height(mut self, height: u32) -> anyhow::Result<Self> {
-		if height % 8 != 0 || height.is_zero() {
-			anyhow::bail!("height must be positive integer that divisible by 8")
-		}
-		self.height = height;
-		Ok(self)
+	/// Set the height of the image. **Height will be rounded to a multiple of 8.**
+	#[inline]
+	pub fn with_height(mut self, height: u32) -> Self {
+		self.height = (height / 8).max(1) * 8;
+		self
 	}
 	/// The number of steps to take to generate the image. More steps typically yields higher quality images.
 	pub fn with_steps(mut self, steps: usize) -> Self {

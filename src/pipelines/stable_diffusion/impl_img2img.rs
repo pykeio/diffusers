@@ -18,27 +18,23 @@ impl Default for StableDiffusionImg2ImgOptions {
 
 // builder for options
 impl StableDiffusionImg2ImgOptions {
-	///  Set the size of the image. **Must be divisible by 8.**
-	pub fn with_size(self, height: u32, width: u32) -> anyhow::Result<Self> {
-		self.with_width(width)?.with_height(height)
+	/// Set the size of the image. **Size will be rounded to a multiple of 8.**
+	pub fn with_size(self, height: u32, width: u32) -> Self {
+		self.with_width(width).with_height(height)
 	}
-	///  Set the width of the image. **Must be divisible by 8.**
-	pub fn with_width(mut self, width: u32) -> anyhow::Result<Self> {
-		if width % 8 != 0 || width == 0 {
-			anyhow::bail!("width must be positive integer that divisible by 8")
-		}
-		self.target_width = width;
+	/// Set the width of the image. **Width will be rounded to a multiple of 8.**
+	#[inline]
+	pub fn with_width(mut self, width: u32) -> Self {
+		self.text_config.width = (width / 8).max(1) * 8;
 		self.drop_reference_image();
-		Ok(self)
+		self
 	}
-	///  Set the height of the image. **Must be divisible by 8.**
-	pub fn with_height(mut self, height: u32) -> anyhow::Result<Self> {
-		if height % 8 != 0 || height == 0 {
-			anyhow::bail!("height must be positive integer that divisible by 8")
-		}
-		self.target_height = height;
+	/// Set the height of the image. **Height will be rounded to a multiple of 8.**
+	#[inline]
+	pub fn with_height(mut self, height: u32) -> Self {
+		self.text_config.height = (height / 8).max(1) * 8;
 		self.drop_reference_image();
-		Ok(self)
+		self
 	}
 	#[inline(always)]
 	fn drop_reference_image(&mut self) {
