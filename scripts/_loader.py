@@ -30,7 +30,7 @@ def load_accelerate(cls: Type[T], root: Path, checkpoint_name = 'diffusion_pytor
 			pretrained_model_name_or_path=root
 		)
 
-	accelerate.load_checkpoint_and_dispatch(model, root / checkpoint_name, device_map='auto')
+	accelerate.load_checkpoint_and_dispatch(model, str(root / checkpoint_name), device_map='auto')
 
 	model = model.to(dtype=dtype, device=device)
 	model.eval()
