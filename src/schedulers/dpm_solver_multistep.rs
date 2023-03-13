@@ -181,10 +181,7 @@ impl DPMSolverMultistepScheduler {
 		let sigma_t = alphas_cumprod.map(|f| (1.0 - f).sqrt());
 		let lambda_t = alpha_t.map(|f| f.log(std::f32::consts::E)) - sigma_t.map(|f| f.log(std::f32::consts::E));
 
-		let timesteps = Array1::linspace(0.0, num_train_timesteps as f32 - 1.0, num_train_timesteps)
-			.slice(s![..;-1])
-			.map(|f| *f as usize)
-			.to_owned();
+		let timesteps = Array1::linspace(num_train_timesteps as f32 - 1.0, 0.0, num_train_timesteps).map(|f| *f as usize);
 
 		// standard deviation of the initial noise distribution
 		let init_noise_sigma = 1.0;
@@ -205,20 +202,20 @@ impl DPMSolverMultistepScheduler {
 		})
 	}
 
-	fn convert_model_output(&self, model_output: Array4<f32>, timestep: usize, sample: ArrayView4<f32>) -> Array4<f32> {
+	fn convert_model_output(&self, model_output: ArrayView4<'_, f32>, timestep: usize, sample: ArrayView4<f32>) -> Array4<f32> {
 		match self.config.algorithm_type {
 			DPMSolverAlgorithmType::DPMSolverPlusPlus => {
 				let x0_pred = match self.prediction_type {
 					SchedulerPredictionType::Epsilon => {
 						let alpha_t = self.alpha_t[timestep];
 						let sigma_t = self.sigma_t[timestep];
-						(sample.to_owned() - sigma_t * model_output) / alpha_t
+						(&sample - sigma_t * &model_output) / alpha_t
 					}
-					SchedulerPredictionType::Sample => model_output,
+					SchedulerPredictionType::Sample => model_output.to_owned(),
 					SchedulerPredictionType::VPrediction => {
 						let alpha_t = self.alpha_t[timestep];
 						let sigma_t = self.sigma_t[timestep];
-						alpha_t * sample.to_owned() - sigma_t * model_output
+						alpha_t * &sample - sigma_t * &model_output
 					}
 				};
 				if self.config.thresholding {
@@ -227,16 +224,16 @@ impl DPMSolverMultistepScheduler {
 				x0_pred
 			}
 			DPMSolverAlgorithmType::DPMSolver => match self.prediction_type {
-				SchedulerPredictionType::Epsilon => model_output,
+				SchedulerPredictionType::Epsilon => model_output.to_owned(),
 				SchedulerPredictionType::Sample => {
 					let alpha_t = self.alpha_t[timestep];
 					let sigma_t = self.sigma_t[timestep];
-					(sample.to_owned() - alpha_t * model_output) / sigma_t
+					(&sample - alpha_t * &model_output) / sigma_t
 				}
 				SchedulerPredictionType::VPrediction => {
 					let alpha_t = self.alpha_t[timestep];
 					let sigma_t = self.sigma_t[timestep];
-					alpha_t * model_output + sigma_t * sample.to_owned()
+					alpha_t * &model_output + sigma_t * &sample
 				}
 			}
 		}
@@ -248,10 +245,8 @@ impl DPMSolverMultistepScheduler {
 		let (sigma_t, sigma_s) = (self.sigma_t[prev_timestep], self.sigma_t[timestep]);
 		let h = lambda_t - lambda_s;
 		match self.config.algorithm_type {
-			DPMSolverAlgorithmType::DPMSolverPlusPlus => {
-				(sigma_t / sigma_s) * sample.to_owned() - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * model_output
-			}
-			DPMSolverAlgorithmType::DPMSolver => (alpha_t / alpha_s) * sample.to_owned() - (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * model_output
+			DPMSolverAlgorithmType::DPMSolverPlusPlus => (sigma_t / sigma_s) * &sample - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * model_output,
+			DPMSolverAlgorithmType::DPMSolver => (alpha_t / alpha_s) * &sample - (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * model_output
 		}
 	}
 
@@ -275,23 +270,23 @@ impl DPMSolverMultistepScheduler {
 		match self.config.algorithm_type {
 			DPMSolverAlgorithmType::DPMSolverPlusPlus => match self.config.solver_type {
 				DPMSolverType::Midpoint => {
-					((sigma_t / sigma_s0) * sample.to_owned())
+					((sigma_t / sigma_s0) * &sample)
 						- (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
 						- 0.5 * (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d1
 				}
 				DPMSolverType::Heun => {
-					((sigma_t / sigma_s0) * sample.to_owned()) - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
+					((sigma_t / sigma_s0) * &sample) - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
 						+ (alpha_t * ((std::f32::consts::E.powf(-h) - 1.0) / h + 1.0)) * d1
 				}
 			},
 			DPMSolverAlgorithmType::DPMSolver => match self.config.solver_type {
 				DPMSolverType::Midpoint => {
-					(alpha_t / alpha_s0) * sample.to_owned()
+					(alpha_t / alpha_s0) * &sample
 						- (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d0
 						- 0.5 * (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d1
 				}
 				DPMSolverType::Heun => {
-					(alpha_t / alpha_s0) * sample.to_owned()
+					(alpha_t / alpha_s0) * &sample
 						- (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d0
 						- (sigma_t * ((std::f32::consts::E.powf(h) - 1.0) / h - 1.0)) * d1
 				}
@@ -322,17 +317,17 @@ impl DPMSolverMultistepScheduler {
 		let (r0, r1) = (h_0 / h, h_1 / h);
 		let d0 = m0;
 		let (d1_0, d1_1) = ((1.0 / r0) * (m0 - m1), (1.0 / r1) * (m1 - m2));
-		let d1 = d1_0.clone() + (r0 / (r0 + r1)) * (&d1_0 - &d1_1);
+		let d1 = &d1_0 + (r0 / (r0 + r1)) * (&d1_0 - &d1_1);
 		let d2 = (1.0 / (r0 + r1)) * (d1_0 - d1_1);
 
 		match self.config.algorithm_type {
 			DPMSolverAlgorithmType::DPMSolverPlusPlus => {
-				(sigma_t / sigma_s0) * sample.to_owned() - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
+				(sigma_t / sigma_s0) * &sample - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
 					+ (alpha_t * ((std::f32::consts::E.powf(-h) - 1.0) / h + 1.0)) * d1
 					- (alpha_t * ((std::f32::consts::E.powf(-h) - 1.0 + h) / h.powi(2) - 0.5)) * d2
 			}
 			DPMSolverAlgorithmType::DPMSolver => {
-				(alpha_t / alpha_s0) * sample.to_owned()
+				(alpha_t / alpha_s0) * &sample
 					- (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d0
 					- (sigma_t * ((std::f32::consts::E.powf(h) - 1.0) / h - 1.0)) * d1
 					- (sigma_t * ((std::f32::consts::E.powf(h) - 1.0 - h) / h.powi(2) - 0.5)) * d2
@@ -355,11 +350,7 @@ impl DiffusionScheduler for DPMSolverMultistepScheduler {
 	fn set_timesteps(&mut self, num_inference_steps: usize) {
 		self.num_inference_steps = Some(num_inference_steps);
 
-		let timesteps = Array1::linspace(0.0, (self.num_train_timesteps - 1) as f32, num_inference_steps + 1)
-			.slice(s![..;-1])
-			.slice(s![..num_inference_steps])
-			.map(|f| f.round() as usize)
-			.to_owned();
+		let timesteps = Array1::linspace(self.num_train_timesteps as f32 - 1.0, 0.0, num_inference_steps).map(|f| *f as usize);
 
 		self.timesteps = timesteps;
 		self.model_outputs = vec![None; self.config.solver_order as _];
@@ -378,7 +369,7 @@ impl DiffusionScheduler for DPMSolverMultistepScheduler {
 		let lower_order_final = (step_index == self.timesteps.len() - 1) && self.config.lower_order_final && self.timesteps.len() < 15;
 		let lower_order_second = (step_index == self.timesteps.len() - 2) && self.config.lower_order_final && self.timesteps.len() < 15;
 
-		let model_output = self.convert_model_output(model_output.to_owned(), timestep, sample);
+		let model_output = self.convert_model_output(model_output, timestep, sample);
 		for i in 0..self.config.solver_order - 1 {
 			self.model_outputs[i] = self.model_outputs[i + 1].clone();
 		}
@@ -399,7 +390,7 @@ impl DiffusionScheduler for DPMSolverMultistepScheduler {
 	}
 
 	fn add_noise(&mut self, original_samples: ArrayView4<'_, f32>, noise: ArrayView4<'_, f32>, timestep: usize) -> Array4<f32> {
-		self.alphas_cumprod[timestep].sqrt() * original_samples.to_owned() + (1.0 - self.alphas_cumprod[timestep]).sqrt() * noise.to_owned()
+		self.alphas_cumprod[timestep].sqrt() * &original_samples + (1.0 - self.alphas_cumprod[timestep]).sqrt() * &noise
 	}
 
 	fn timesteps(&self) -> ndarray::ArrayView1<'_, usize> {

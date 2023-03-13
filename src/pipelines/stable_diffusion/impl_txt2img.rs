@@ -160,14 +160,13 @@ impl StableDiffusionTxt2ImgOptions {
 		let timesteps = scheduler.timesteps().to_owned();
 		let num_warmup_steps = timesteps.len() - self.steps * S::order();
 
-		for (i, t) in timesteps.to_owned().indexed_iter() {
+		for (i, t) in timesteps.indexed_iter() {
 			let latent_model_input = if do_classifier_free_guidance {
 				concatenate![Axis(0), latents, latents]
 			} else {
-				latents.to_owned()
+				latents.clone()
 			};
 			let latent_model_input = scheduler.scale_model_input(latent_model_input.view(), *t);
-
 			let latent_model_input: ArrayD<f32> = latent_model_input.into_dyn();
 			let timestep: ArrayD<f32> = Array1::from_iter([t.to_f32().unwrap()]).into_dyn();
 			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
@@ -184,12 +183,12 @@ impl StableDiffusionTxt2ImgOptions {
 			if do_classifier_free_guidance {
 				let mut noise_pred_chunks = noise_pred.axis_iter(Axis(0));
 				let (noise_pred_uncond, noise_pred_text) = (noise_pred_chunks.next().unwrap(), noise_pred_chunks.next().unwrap());
-				let (noise_pred_uncond, noise_pred_text) = (noise_pred_uncond.insert_axis(Axis(0)).to_owned(), noise_pred_text.insert_axis(Axis(0)).to_owned());
-				noise_pred = &noise_pred_uncond + self.guidance_scale * (noise_pred_text - &noise_pred_uncond);
+				let (noise_pred_uncond, noise_pred_text) = (noise_pred_uncond.insert_axis(Axis(0)), noise_pred_text.insert_axis(Axis(0)));
+				noise_pred = &noise_pred_uncond + self.guidance_scale * (&noise_pred_text - &noise_pred_uncond);
 			}
 
 			let scheduler_output = scheduler.step(noise_pred.view(), *t, latents.view(), &mut rng);
-			latents = scheduler_output.prev_sample().to_owned();
+			latents = scheduler_output.prev_sample;
 
 			if let Some(callback) = self.callback.as_ref() {
 				if i == timesteps.len() - 1 || ((i + 1) > num_warmup_steps && (i + 1) % S::order() == 0) {
@@ -197,10 +196,10 @@ impl StableDiffusionTxt2ImgOptions {
 						StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
 						StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
 						StableDiffusionCallback::Decoded { frequency, cb } if i != 0 && i % frequency == 0 => {
-							cb(i, t.to_f32().unwrap(), session.decode_latents(latents.clone())?)
+							cb(i, t.to_f32().unwrap(), session.decode_latents(latents.view())?)
 						}
 						StableDiffusionCallback::ApproximateDecoded { frequency, cb } if i != 0 && i % frequency == 0 => {
-							cb(i, t.to_f32().unwrap(), session.approximate_decode_latents(latents.clone())?)
+							cb(i, t.to_f32().unwrap(), session.approximate_decode_latents(latents.view())?)
 						}
 						_ => true
 					};
@@ -211,6 +210,6 @@ impl StableDiffusionTxt2ImgOptions {
 			}
 		}
 
-		session.decode_latents(latents)
+		session.decode_latents(latents.view())
 	}
 }

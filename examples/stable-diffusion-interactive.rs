@@ -16,16 +16,18 @@ use std::{cell::RefCell, env};
 
 use kdam::{tqdm, BarExt};
 use pyke_diffusers::{
-	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults,
-	StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
+	ArenaExtendStrategy, CUDADeviceOptions, DPMSolverMultistepScheduler, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment,
+	SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 use requestty::Question;
 use show_image::{ImageInfo, ImageView, WindowOptions};
 
 #[show_image::main]
 fn main() -> anyhow::Result<()> {
+	tracing_subscriber::fmt::init();
+
 	let environment = OrtEnvironment::default().into_arc();
-	let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
+	let mut scheduler = DPMSolverMultistepScheduler::stable_diffusion_v1_optimized_default()?;
 
 	let mut path = env::current_dir()?;
 	path.push(env::args().nth(1).expect("expected a path to a model as the first argument"));
@@ -54,7 +56,7 @@ fn main() -> anyhow::Result<()> {
 		if let Ok(prompt) = prompt {
 			let prompt = prompt.as_string().unwrap();
 
-			let imgs = {
+			let mut imgs = {
 				let pb = RefCell::new(tqdm!(total = 20, desc = "generating"));
 				StableDiffusionTxt2ImgOptions::default()
 					.with_steps(20)
@@ -67,7 +69,7 @@ fn main() -> anyhow::Result<()> {
 			};
 
 			let window = show_image::create_window(prompt, WindowOptions::default())?;
-			let image = imgs[0].clone().into_rgb8();
+			let image = imgs.remove(0).into_rgb8();
 			let image = ImageView::new(ImageInfo::rgb8(512, 512), &image);
 			window.set_image("result", image)?;
 			window.run_function(|mut handle| {

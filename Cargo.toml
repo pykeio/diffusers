@@ -42,6 +42,7 @@ tokenizers = { version = "0.13", optional = true, default-features = false, feat
 tokio = { version = "1.0", features = [ "full" ] }
 image = { version = "0.24", default-features = false, features = [ "png" ] }
 ort = { git = "https://github.com/pykeio/ort.git", default-features = false, features = [ "download-binaries" ] }
+tracing-subscriber = "0.3"
 
 requestty = "0.5"
 kdam = "0.3"

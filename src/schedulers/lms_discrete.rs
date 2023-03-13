@@ -131,9 +131,7 @@ impl LMSDiscreteScheduler {
 			.reduce(|a, b| if a > b { a } else { b })
 			.ok_or_else(|| anyhow!("init_noise_sigma could not be reduced from sigmas - this should never happen"))?;
 
-		let timesteps = Array1::linspace(0.0, num_train_timesteps as f32 - 1.0, num_train_timesteps)
-			.slice(s![..;-1])
-			.to_owned();
+		let timesteps = Array1::linspace(num_train_timesteps as f32 - 1.0, 0.0, num_train_timesteps);
 
 		Ok(Self {
 			workspace: IntegrationWorkspace::new(num_train_timesteps).unwrap(),
@@ -217,9 +215,7 @@ impl DiffusionScheduler for LMSDiscreteScheduler {
 	}
 
 	fn set_timesteps(&mut self, num_inference_steps: usize) {
-		let timesteps = Array1::linspace(0.0, (self.num_train_timesteps - 1) as f32, num_inference_steps)
-			.slice(s![..;-1])
-			.to_owned();
+		let timesteps = Array1::linspace(self.num_train_timesteps as f32 - 1.0, 0.0, num_inference_steps);
 
 		let mut sigmas = self.alphas_cumprod.clone();
 		sigmas.par_map_inplace(|f| {

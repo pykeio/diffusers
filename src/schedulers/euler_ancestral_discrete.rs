@@ -97,9 +97,7 @@ impl EulerAncestralDiscreteScheduler {
 		});
 		sigmas = concatenate![Axis(0), sigmas.slice(s![..;-1]), Array1::zeros(1,)];
 
-		let timesteps = Array1::linspace(0.0, num_train_timesteps as f32 - 1.0, num_train_timesteps)
-			.slice(s![..;-1])
-			.to_owned();
+		let timesteps = Array1::linspace(num_train_timesteps as f32 - 1.0, 0.0, num_train_timesteps);
 
 		// standard deviation of the initial noise distribution
 		let init_noise_sigma = *sigmas
@@ -145,15 +143,13 @@ impl DiffusionScheduler for EulerAncestralDiscreteScheduler {
 
 		self.has_scale_input_been_called = true;
 
-		sample.to_owned() / (sigma.powi(2) + 1.0).sqrt()
+		&sample / (sigma.powi(2) + 1.0).sqrt()
 	}
 
 	fn set_timesteps(&mut self, num_inference_steps: usize) {
 		self.num_inference_steps = Some(num_inference_steps);
 
-		let timesteps = Array1::linspace(0.0_f32, (self.num_train_timesteps - 1) as f32, num_inference_steps)
-			.slice(s![..;-1])
-			.to_owned();
+		let timesteps = Array1::linspace(self.num_train_timesteps as f32 - 1.0, 0.0, num_inference_steps);
 
 		let mut sigmas = self.alphas_cumprod.clone();
 		sigmas.par_map_inplace(|f| {
@@ -193,14 +189,14 @@ impl DiffusionScheduler for EulerAncestralDiscreteScheduler {
 			.expect("step_index out of sigma bounds - this shouldn't happen");
 
 		// 1. compute predicted original sample (x_0) from sigma-scaled predicted noise
-		let pred_original_sample = sample.to_owned() - *sigma_from * model_output.to_owned();
+		let pred_original_sample = &sample - *sigma_from * &model_output;
 		let sigma_up = (sigma_to.powi(2) * (sigma_from.powi(2) - sigma_to.powi(2)) / sigma_from.powi(2)).sqrt();
 		let sigma_down = (sigma_to.powi(2) - sigma_up.powi(2)).sqrt();
 
 		// 2. convert to a ODE derivative
-		let derivative = (sample.to_owned() - pred_original_sample.clone()) / *sigma_from;
+		let derivative = (&sample - &pred_original_sample) / *sigma_from;
 		let dt = sigma_down - *sigma_from;
-		let prev_sample = sample.to_owned() + derivative * dt;
+		let prev_sample = &sample + &derivative * dt;
 
 		let noise = Array4::<f32>::random_using(model_output.raw_dim(), StandardNormal, rng);
 		let prev_sample = prev_sample + noise * sigma_up;

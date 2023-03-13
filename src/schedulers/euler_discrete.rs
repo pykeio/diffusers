@@ -97,9 +97,7 @@ impl EulerDiscreteScheduler {
 		});
 		sigmas = concatenate![Axis(0), sigmas.slice(s![..;-1]), Array1::zeros(1,)];
 
-		let timesteps = Array1::linspace(0.0, num_train_timesteps as f32 - 1.0, num_train_timesteps)
-			.slice(s![..;-1])
-			.to_owned();
+		let timesteps = Array1::linspace(num_train_timesteps as f32 - 1.0, 0.0, num_train_timesteps);
 
 		// standard deviation of the initial noise distribution
 		let init_noise_sigma = *sigmas
@@ -145,15 +143,13 @@ impl DiffusionScheduler for EulerDiscreteScheduler {
 
 		self.has_scale_input_been_called = true;
 
-		sample.to_owned() / (sigma.powi(2) + 1.0).sqrt()
+		&sample / (sigma.powi(2) + 1.0).sqrt()
 	}
 
 	fn set_timesteps(&mut self, num_inference_steps: usize) {
 		self.num_inference_steps = Some(num_inference_steps);
 
-		let timesteps = Array1::linspace(0.0_f32, (self.num_train_timesteps - 1) as f32, num_inference_steps)
-			.slice(s![..;-1])
-			.to_owned();
+		let timesteps = Array1::linspace(self.num_train_timesteps as f32 - 1.0, 0.0, num_inference_steps);
 
 		let mut sigmas = self.alphas_cumprod.clone();
 		sigmas.par_map_inplace(|f| {
@@ -201,14 +197,14 @@ impl DiffusionScheduler for EulerDiscreteScheduler {
 		let eps = Array4::<f32>::random_using(model_output.raw_dim(), StandardNormal, rng) * s_noise;
 		let sigma_hat = *sigma * (gamma + 1.0);
 		let sample = if gamma > 0.0 {
-			sample.to_owned() + eps * sigma_hat.mul_add(sigma_hat, -sigma.powi(2)).sqrt()
+			&sample + eps * sigma_hat.mul_add(sigma_hat, -sigma.powi(2)).sqrt()
 		} else {
 			sample.to_owned()
 		};
 
-		let pred_original_sample = sample.clone() - sigma_hat * model_output.to_owned();
+		let pred_original_sample = &sample - sigma_hat * &model_output;
 
-		let derivative = (sample.clone() - &pred_original_sample) / sigma_hat;
+		let derivative = (&sample - &pred_original_sample) / sigma_hat;
 
 		let dt = self.sigmas[step_index + 1] - sigma_hat;
 

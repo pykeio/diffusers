@@ -16,7 +16,7 @@ use std::path::Path;
 use std::{fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
-use ndarray::{concatenate, Array2, Array4, ArrayD, Axis, IxDyn};
+use ndarray::{concatenate, Array2, Array4, ArrayD, ArrayView4, Axis, IxDyn};
 use ndarray_einsum_beta::einsum;
 use ort::{
 	tensor::{FromArray, InputTensor, OrtOwnedTensor},
@@ -361,7 +361,7 @@ impl StableDiffusionPipeline {
 	}
 
 	/// Decodes UNet latents via a cheap approximation into an array of [`image::DynamicImage`]s.
-	pub fn approximate_decode_latents(&self, latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
+	pub fn approximate_decode_latents(&self, latents: ArrayView4<'_, f32>) -> anyhow::Result<Vec<DynamicImage>> {
 		let coefs = Array2::from_shape_vec((4, 3), vec![0.298, 0.207, 0.208, 0.187, 0.286, 0.173, -0.158, 0.189, 0.264, -0.184, -0.271, -0.473])?;
 		let approx = einsum("blxy,lr->bxyr", &[&latents, &coefs]).expect("einsum error");
 		let mut images = Vec::new();
@@ -375,14 +375,13 @@ impl StableDiffusionPipeline {
 	}
 
 	/// Decodes UNet latents via the variational autoencoder into an array of [`image::DynamicImage`]s.
-	pub fn decode_latents(&self, mut latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
-		latents = 1.0 / 0.18215 * latents;
+	pub fn decode_latents(&self, latents: ArrayView4<'_, f32>) -> anyhow::Result<Vec<DynamicImage>> {
+		let latents = 1.0 / 0.18215 * &latents;
 
-		let latent_vae_input: ArrayD<f32> = latents.into_dyn();
 		let mut images = Vec::new();
-		for latent_chunk in latent_vae_input.axis_iter(Axis(0)) {
-			let latent_chunk = latent_chunk.to_owned().insert_axis(Axis(0));
-			let image = self.vae_decoder.run(vec![InputTensor::from_array(latent_chunk)])?;
+		for latent_chunk in latents.axis_iter(Axis(0)) {
+			let latent_chunk = latent_chunk.into_dyn().insert_axis(Axis(0));
+			let image = self.vae_decoder.run(vec![InputTensor::from_array(latent_chunk.to_owned())])?;
 			let image: OrtOwnedTensor<'_, f32, IxDyn> = image[0].try_extract()?;
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
 			let f_image = f_image.permuted_axes([0, 2, 3, 1]).map(|f| (f / 2.0 + 0.5).clamp(0.0, 1.0));
