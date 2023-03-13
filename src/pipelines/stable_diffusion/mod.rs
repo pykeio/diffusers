@@ -17,14 +17,16 @@ use std::fmt::Debug;
 use image::DynamicImage;
 use ndarray::Array4;
 
+pub use self::impl_main::*;
+pub use self::impl_memory_optimized::*;
 use crate::{DiffusionDeviceControl, Prompt};
 
 pub(crate) mod lpw;
 
+mod impl_img2img;
 mod impl_main;
-pub use self::impl_main::*;
 mod impl_memory_optimized;
-pub use self::impl_memory_optimized::*;
+mod impl_txt2img;
 
 /// Options for the Stable Diffusion pipeline. This includes options like device control and long prompt weighting.
 #[derive(Debug, Clone)]
@@ -143,6 +145,8 @@ pub struct StableDiffusionTxt2ImgOptions {
 	/// Seeds are not interchangable between schedulers, and **a seed from Hugging Face diffusers or AUTOMATIC1111's
 	/// web UI will *not* generate the same image** in pyke Diffusers.
 	pub seed: Option<u64>,
+	/// Prompt(s) describing what the model should generate in classifier-free guidance. Typically used to produce
+	pub positive_prompt: Prompt,
 	/// Optional prompt(s) describing what the model should **not** generate in classifier-free guidance. Typically used
 	/// to produce safe outputs, e.g. `negative_prompt: Some("gore, violence, blood".into())`. Must have the same
 	/// number of prompts as the 'positive' prompt input.
@@ -152,16 +156,19 @@ pub struct StableDiffusionTxt2ImgOptions {
 	pub callback: Option<StableDiffusionCallback>
 }
 
-impl Default for StableDiffusionTxt2ImgOptions {
-	fn default() -> Self {
-		Self {
-			height: 512,
-			width: 512,
-			guidance_scale: 7.5,
-			steps: 50,
-			seed: None,
-			negative_prompt: None,
-			callback: None
-		}
-	}
+/// Options for the Stable Diffusion image-to-image pipeline.
+#[derive(Debug)]
+pub struct StableDiffusionImg2ImgOptions {
+	reference_image: Array4<f32>,
+	preprocessing: ImagePreprocessing,
+	text_config: StableDiffusionTxt2ImgOptions
+}
+
+/// The image preprocessing method to on images that mismatch size.
+#[derive(Debug)]
+pub enum ImagePreprocessing {
+	/// The image is resized to the target size.
+	Resize,
+	/// Crop extra pixels, fill the rest with black.
+	CropFill
 }

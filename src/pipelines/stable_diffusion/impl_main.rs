@@ -16,22 +16,19 @@ use std::path::Path;
 use std::{fs, path::PathBuf, sync::Arc};
 
 use image::{DynamicImage, Rgb32FImage};
-use ndarray::{concatenate, Array1, Array2, Array4, ArrayD, Axis, IxDyn};
+use ndarray::{concatenate, Array2, Array4, ArrayD, Axis, IxDyn};
 use ndarray_einsum_beta::einsum;
-use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
-use num_traits::ToPrimitive;
 use ort::{
 	tensor::{FromArray, InputTensor, OrtOwnedTensor},
 	Environment, OrtResult, Session, SessionBuilder
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use super::{StableDiffusionOptions, StableDiffusionTxt2ImgOptions};
 use crate::{
 	clip::CLIPStandardTokenizer,
 	config::{DiffusionFramework, DiffusionPipeline, StableDiffusionConfig, TokenizerConfig},
 	schedulers::DiffusionScheduler,
-	Prompt, StableDiffusionCallback
+	Prompt
 };
 
 /// A [Stable Diffusion](https://github.com/CompVis/stable-diffusion) pipeline.
@@ -60,7 +57,7 @@ pub struct StableDiffusionPipeline {
 	vae_decoder: Session,
 	text_encoder: Session,
 	tokenizer: CLIPStandardTokenizer,
-	unet: Session,
+	pub(crate) unet: Session,
 	safety_checker: Option<Session>,
 	#[allow(dead_code)]
 	feature_extractor: Option<()>
@@ -418,87 +415,15 @@ impl StableDiffusionPipeline {
 	/// # Ok(())
 	/// # }
 	/// ```
+	#[deprecated(note = "use `StableDiffusionTxt2ImgOptions::run` instead")]
 	pub fn txt2img<S: DiffusionScheduler>(
 		&self,
 		prompt: impl Into<Prompt>,
 		scheduler: &mut S,
 		options: StableDiffusionTxt2ImgOptions
 	) -> anyhow::Result<Vec<DynamicImage>> {
-		let steps = options.steps;
-
-		let seed = options.seed.unwrap_or_else(|| rand::thread_rng().gen::<u64>());
-		let mut rng = StdRng::seed_from_u64(seed);
-
-		if options.height % 8 != 0 || options.width % 8 != 0 {
-			anyhow::bail!("`width` ({}) and `height` ({}) must be divisible by 8 for Stable Diffusion", options.width, options.height);
-		}
-
-		let prompt: Prompt = prompt.into();
-		let batch_size = prompt.len();
-
-		let do_classifier_free_guidance = options.guidance_scale > 1.0;
-		let text_embeddings = self.encode_prompt(prompt, do_classifier_free_guidance, options.negative_prompt.as_ref())?;
-
-		let latents_shape = (batch_size, 4_usize, (options.height / 8) as usize, (options.width / 8) as usize);
-		let mut latents = Array4::<f32>::random_using(latents_shape, StandardNormal, &mut rng);
-
-		scheduler.set_timesteps(steps);
-		latents *= scheduler.init_noise_sigma();
-
-		let timesteps = scheduler.timesteps().to_owned();
-		let num_warmup_steps = timesteps.len() - options.steps * S::order();
-
-		for (i, t) in timesteps.to_owned().indexed_iter() {
-			let latent_model_input = if do_classifier_free_guidance {
-				concatenate![Axis(0), latents, latents]
-			} else {
-				latents.to_owned()
-			};
-			let latent_model_input = scheduler.scale_model_input(latent_model_input.view(), *t);
-
-			let latent_model_input: ArrayD<f32> = latent_model_input.into_dyn();
-			let timestep: ArrayD<f32> = Array1::from_iter([t.to_f32().unwrap()]).into_dyn();
-			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
-
-			let noise_pred = self.unet.run(vec![
-				InputTensor::from_array(latent_model_input),
-				InputTensor::from_array(timestep),
-				InputTensor::from_array(encoder_hidden_states),
-			])?;
-			let noise_pred: OrtOwnedTensor<'_, f32, IxDyn> = noise_pred[0].try_extract()?;
-			let noise_pred: Array4<f32> = noise_pred.view().to_owned().into_dimensionality()?;
-
-			let mut noise_pred: Array4<f32> = noise_pred.clone();
-			if do_classifier_free_guidance {
-				let mut noise_pred_chunks = noise_pred.axis_iter(Axis(0));
-				let (noise_pred_uncond, noise_pred_text) = (noise_pred_chunks.next().unwrap(), noise_pred_chunks.next().unwrap());
-				let (noise_pred_uncond, noise_pred_text) = (noise_pred_uncond.insert_axis(Axis(0)).to_owned(), noise_pred_text.insert_axis(Axis(0)).to_owned());
-				noise_pred = &noise_pred_uncond + options.guidance_scale * (noise_pred_text - &noise_pred_uncond);
-			}
-
-			let scheduler_output = scheduler.step(noise_pred.view(), *t, latents.view(), &mut rng);
-			latents = scheduler_output.prev_sample().to_owned();
-
-			if let Some(callback) = options.callback.as_ref() {
-				if i == timesteps.len() - 1 || ((i + 1) > num_warmup_steps && (i + 1) % S::order() == 0) {
-					let keep_going = match callback {
-						StableDiffusionCallback::Progress { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap()),
-						StableDiffusionCallback::Latents { frequency, cb } if i % frequency == 0 => cb(i, t.to_f32().unwrap(), latents.clone()),
-						StableDiffusionCallback::Decoded { frequency, cb } if i != 0 && i % frequency == 0 => {
-							cb(i, t.to_f32().unwrap(), self.decode_latents(latents.clone())?)
-						}
-						StableDiffusionCallback::ApproximateDecoded { frequency, cb } if i != 0 && i % frequency == 0 => {
-							cb(i, t.to_f32().unwrap(), self.approximate_decode_latents(latents.clone())?)
-						}
-						_ => true
-					};
-					if !keep_going {
-						break;
-					}
-				}
-			}
-		}
-
-		self.decode_latents(latents)
+		let mut new_options = options;
+		new_options.positive_prompt = prompt.into();
+		new_options.run(self, scheduler)
 	}
 }
