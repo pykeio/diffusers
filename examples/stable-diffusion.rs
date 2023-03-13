@@ -39,8 +39,12 @@ fn main() -> anyhow::Result<()> {
 		}
 	)?;
 
-	let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions { steps: 20, ..Default::default() })?;
-	imgs[0].clone().into_rgb8().save("result.png")?;
+	let mut imgs = StableDiffusionTxt2ImgOptions::default()
+		.with_steps(20)
+		.with_prompts("photo of a red fox", None)
+		.run(&pipeline, &mut scheduler)?;
+
+	imgs.remove(0).into_rgb8().save("result.png")?;
 
 	Ok(())
 }

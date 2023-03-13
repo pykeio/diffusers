@@ -64,8 +64,11 @@ let environment = OrtEnvironment::default().into_arc();
 let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
 let pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5", StableDiffusionOptions::default())?;
 
-let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
-imgs[0].clone().into_rgb8().save("result.png")?;
+let mut imgs = StableDiffusionTxt2ImgOptions::default()
+    .with_prompts("photo of a red fox", None)
+    .run(&pipeline, &mut scheduler)?;
+
+imgs.remove(0).into_rgb8().save("result.png")?;
 ```
 
 ### Examples

@@ -16,6 +16,8 @@ Approximated images may be noisy and colors will not be accurate (especially if 
 ## Callback Example
 
 ```no_run
+use image::DynamicImage;
+
 let mut images = Vec::new();
 let callback = move |_: usize, _: f32, image: Vec<DynamicImage>| -> bool {
     images.extend(image);

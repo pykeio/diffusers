@@ -34,7 +34,9 @@
 //! let pipeline =
 //! 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 //!
-//! let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
+//! let imgs = StableDiffusionTxt2ImgOptions::default()
+//! 	.with_prompts("photo of a red fox", None)
+//! 	.run(&pipeline, &mut scheduler)?;
 //! # Ok(())
 //! # }
 //! ```

@@ -45,7 +45,9 @@ use crate::{
 /// let pipeline =
 /// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 ///
-/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
+/// let imgs = StableDiffusionTxt2ImgOptions::default()
+/// 	.with_prompts("photo of a red fox", None)
+/// 	.run(&pipeline, &mut scheduler)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -392,8 +394,10 @@ impl StableDiffusionPipeline {
 		Ok(images)
 	}
 
+	/// > **Note**: this is deprecated, use `run()` in [`StableDiffusionTxt2ImgOptions`] instead.
+	///
 	/// Generates images from given text prompt(s). Returns a vector of [`image::DynamicImage`]s, using float32 buffers.
-	/// In most cases, you'll want to convert the images into RGB8 via `img.clone().into_rgb8().`
+	/// In most cases, you'll want to convert the images into RGB8 via `img.into_rgb8().`
 	///
 	/// `scheduler` must be a Stable Diffusion-compatible scheduler.
 	///
@@ -410,12 +414,14 @@ impl StableDiffusionPipeline {
 	/// let pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 	///
-	/// let imgs = pipeline.txt2img("photo of a red fox", &mut scheduler, StableDiffusionTxt2ImgOptions::default())?;
-	/// imgs[0].clone().into_rgb8().save("result.png")?;
+	/// let mut imgs = StableDiffusionTxt2ImgOptions::default()
+	/// 	.with_prompts("photo of a red fox", None)
+	/// 	.run(&pipeline, &mut scheduler)?;
+	/// imgs.remove(0).into_rgb8().save("result.png")?;
 	/// # Ok(())
 	/// # }
 	/// ```
-	#[deprecated(note = "use `StableDiffusionTxt2ImgOptions::run` instead")]
+	#[deprecated(note = "use builder pattern with `StableDiffusionTxt2ImgOptions::run` instead")]
 	pub fn txt2img<S: DiffusionScheduler>(
 		&self,
 		prompt: impl Into<Prompt>,

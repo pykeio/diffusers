@@ -15,7 +15,7 @@ impl Default for StableDiffusionTxt2ImgOptions {
 			height: 512,
 			width: 512,
 			guidance_scale: 7.5,
-			steps: 50,
+			steps: 25,
 			seed: None,
 			positive_prompt: Prompt::default(),
 			negative_prompt: None,
@@ -48,10 +48,9 @@ impl StableDiffusionTxt2ImgOptions {
 		self
 	}
 	/// Set the prompt(s) to use when generating the image.
-	pub fn with_prompts<P, N>(mut self, positive_prompt: P, negative_prompt: Option<N>) -> Self
+	pub fn with_prompts<P>(mut self, positive_prompt: P, negative_prompt: Option<P>) -> Self
 	where
-		P: Into<Prompt>,
-		N: Into<Prompt>
+		P: Into<Prompt>
 	{
 		self.positive_prompt = positive_prompt.into();
 		self.negative_prompt = negative_prompt.map(|p| p.into());
@@ -78,7 +77,7 @@ impl StableDiffusionTxt2ImgOptions {
 
 // builder for callbacks
 impl StableDiffusionTxt2ImgOptions {
-	#[doc = include_str!("callback-progress.md")]
+	#[doc = include_str!("_doc/callback-progress.md")]
 	pub fn callback_progress<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32) -> bool + 'static
@@ -86,7 +85,7 @@ impl StableDiffusionTxt2ImgOptions {
 		self.callback = Some(StableDiffusionCallback::Progress { frequency, cb: Box::new(callback) });
 		self
 	}
-	#[doc = include_str!("callback-latents.md")]
+	#[doc = include_str!("_doc/callback-latents.md")]
 	pub fn callback_latents<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Array4<f32>) -> bool + 'static
@@ -94,7 +93,7 @@ impl StableDiffusionTxt2ImgOptions {
 		self.callback = Some(StableDiffusionCallback::Latents { frequency, cb: Box::new(callback) });
 		self
 	}
-	#[doc = include_str!("callback-decode-image.md")]
+	#[doc = include_str!("_doc/callback-decode-image.md")]
 	pub fn callback_decoded<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Vec<DynamicImage>) -> bool + 'static
@@ -102,7 +101,7 @@ impl StableDiffusionTxt2ImgOptions {
 		self.callback = Some(StableDiffusionCallback::Decoded { frequency, cb: Box::new(callback) });
 		self
 	}
-	#[doc = include_str!("callback-approximate-image.md")]
+	#[doc = include_str!("_doc/callback-approximate-image.md")]
 	pub fn callback_approximate<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Vec<DynamicImage>) -> bool + 'static
@@ -114,7 +113,7 @@ impl StableDiffusionTxt2ImgOptions {
 
 impl StableDiffusionTxt2ImgOptions {
 	/// Generates images from given text prompt(s). Returns a vector of [`image::DynamicImage`]s, using float32 buffers.
-	/// In most cases, you'll want to convert the images into RGB8 via `img.clone().into_rgb8().`
+	/// In most cases, you'll want to convert the images into RGB8 via `img.into_rgb8().`
 	///
 	/// `scheduler` must be a Stable Diffusion-compatible scheduler.
 	///
@@ -131,10 +130,9 @@ impl StableDiffusionTxt2ImgOptions {
 	/// # let mut scheduler = EulerDiscreteScheduler::default();
 	/// let pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
-	/// let txt2img = StableDiffusionTxt2ImgOptions::default().with_prompts("photo of a red fox", None);
 	///
-	/// let imgs = txt2img.run(&pipeline, &mut scheduler)?;
-	/// imgs[0].clone().into_rgb8().save("result.png")?;
+	/// let mut imgs = StableDiffusionTxt2ImgOptions::default().with_prompts("photo of a red fox", None).run(&pipeline, &mut scheduler)?;
+	/// imgs.remove(0).into_rgb8().save("result.png")?;
 	/// # Ok(())
 	/// # }
 	/// ```

@@ -16,7 +16,7 @@ This is very expensive, as it will execute the VAE decoder on each call. See
 
 ```no_run
 let mut images = Vec::new();
-let callback = move |_: usize, _: f32, image: Vec<DynamicImage>| -> bool {
+let callback = move |_: usize, _: f32, image: Vec<image::DynamicImage>| -> bool {
     images.extend(image);
     true
 };

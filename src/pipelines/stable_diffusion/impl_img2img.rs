@@ -122,7 +122,7 @@ impl StableDiffusionImg2ImgOptions {
 
 // builder for callbacks
 impl StableDiffusionImg2ImgOptions {
-	#[doc = include_str!("callback-progress.md")]
+	#[doc = include_str!("_doc/callback-progress.md")]
 	pub fn callback_progress<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32) -> bool + 'static
@@ -130,7 +130,7 @@ impl StableDiffusionImg2ImgOptions {
 		self.text_config.callback = Some(StableDiffusionCallback::Progress { frequency, cb: Box::new(callback) });
 		self
 	}
-	#[doc = include_str!("callback-latents.md")]
+	#[doc = include_str!("_doc/callback-latents.md")]
 	pub fn callback_latents<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Array4<f32>) -> bool + 'static
@@ -138,7 +138,7 @@ impl StableDiffusionImg2ImgOptions {
 		self.text_config.callback = Some(StableDiffusionCallback::Latents { frequency, cb: Box::new(callback) });
 		self
 	}
-	#[doc = include_str!("callback-decode-image.md")]
+	#[doc = include_str!("_doc/callback-decode-image.md")]
 	pub fn callback_decoded<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Vec<DynamicImage>) -> bool + 'static
@@ -146,7 +146,7 @@ impl StableDiffusionImg2ImgOptions {
 		self.text_config.callback = Some(StableDiffusionCallback::Decoded { frequency, cb: Box::new(callback) });
 		self
 	}
-	#[doc = include_str!("callback-approximate-image.md")]
+	#[doc = include_str!("_doc/callback-approximate-image.md")]
 	pub fn callback_approximate<F>(mut self, frequency: usize, callback: F) -> Self
 	where
 		F: Fn(usize, f32, Vec<DynamicImage>) -> bool + 'static

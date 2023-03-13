@@ -17,7 +17,7 @@ use std::{cell::RefCell, env};
 use kdam::{tqdm, BarExt};
 use pyke_diffusers::{
 	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults,
-	StableDiffusionCallback, StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
+	StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 use requestty::Question;
 use show_image::{ImageInfo, ImageView, WindowOptions};
@@ -56,21 +56,14 @@ fn main() -> anyhow::Result<()> {
 
 			let imgs = {
 				let pb = RefCell::new(tqdm!(total = 20, desc = "generating"));
-				pipeline.txt2img(
-					prompt,
-					&mut scheduler,
-					StableDiffusionTxt2ImgOptions {
-						steps: 20,
-						callback: Some(StableDiffusionCallback::Progress {
-							frequency: 1,
-							cb: Box::new(move |step, _| {
-								pb.borrow_mut().update_to(step);
-								true
-							})
-						}),
-						..Default::default()
-					}
-				)?
+				StableDiffusionTxt2ImgOptions::default()
+					.with_steps(20)
+					.with_prompts(prompt, None)
+					.callback_progress(1, move |step, _| {
+						pb.borrow_mut().update_to(step);
+						true
+					})
+					.run(&pipeline, &mut scheduler)?
 			};
 
 			let window = show_image::create_window(prompt, WindowOptions::default())?;
