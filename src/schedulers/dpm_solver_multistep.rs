@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::VecDeque;
+
 use anyhow::Context;
-use ndarray::{s, Array1, Array4, ArrayView4};
+use ndarray::{Array1, Array4, ArrayView4};
 use rand::Rng;
 
 use super::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
@@ -108,7 +110,7 @@ pub struct DPMSolverMultistepScheduler {
 	num_inference_steps: Option<usize>,
 	config: DPMSolverMultistepSchedulerConfig,
 	prediction_type: SchedulerPredictionType,
-	model_outputs: Vec<Option<Array4<f32>>>,
+	model_outputs: VecDeque<Array4<f32>>,
 	lower_order_nums: usize
 }
 
@@ -198,7 +200,7 @@ impl DPMSolverMultistepScheduler {
 			prediction_type: *prediction_type,
 			config: config.clone(),
 			lower_order_nums: 0,
-			model_outputs: vec![None; config.solver_order]
+			model_outputs: VecDeque::with_capacity(config.solver_order)
 		})
 	}
 
@@ -239,20 +241,20 @@ impl DPMSolverMultistepScheduler {
 		}
 	}
 
-	fn dpm_solver_first_order_update(&self, model_output: Array4<f32>, timestep: usize, prev_timestep: usize, sample: ArrayView4<f32>) -> Array4<f32> {
+	fn dpm_solver_first_order_update(&self, model_output: &Array4<f32>, timestep: usize, prev_timestep: usize, sample: ArrayView4<f32>) -> Array4<f32> {
 		let (lambda_t, lambda_s) = (self.lambda_t[prev_timestep], self.lambda_t[timestep]);
 		let (alpha_t, alpha_s) = (self.alpha_t[prev_timestep], self.alpha_t[timestep]);
 		let (sigma_t, sigma_s) = (self.sigma_t[prev_timestep], self.sigma_t[timestep]);
 		let h = lambda_t - lambda_s;
 		match self.config.algorithm_type {
-			DPMSolverAlgorithmType::DPMSolverPlusPlus => (sigma_t / sigma_s) * &sample - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * model_output,
-			DPMSolverAlgorithmType::DPMSolver => (alpha_t / alpha_s) * &sample - (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * model_output
+			DPMSolverAlgorithmType::DPMSolverPlusPlus => (sigma_t / sigma_s) * &sample - (alpha_t * ((-h).exp() - 1.0)) * model_output,
+			DPMSolverAlgorithmType::DPMSolver => (alpha_t / alpha_s) * &sample - (sigma_t * (h.exp() - 1.0)) * model_output
 		}
 	}
 
 	fn multistep_dpm_solver_second_order_update(
 		&self,
-		model_output_list: &Vec<Option<Array4<f32>>>,
+		model_output_list: &VecDeque<Array4<f32>>,
 		timestep_list: [usize; 2],
 		prev_timestep: usize,
 		sample: ArrayView4<f32>
@@ -260,7 +262,7 @@ impl DPMSolverMultistepScheduler {
 		assert_eq!(timestep_list.len(), model_output_list.len());
 
 		let (t, s0, s1) = (prev_timestep, timestep_list[timestep_list.len() - 1], timestep_list[timestep_list.len() - 2]);
-		let (m0, m1) = (model_output_list[model_output_list.len() - 1].as_ref().unwrap(), model_output_list[model_output_list.len() - 2].as_ref().unwrap());
+		let (m0, m1) = (&model_output_list[model_output_list.len() - 1], &model_output_list[model_output_list.len() - 2]);
 		let (lambda_t, lambda_s0, lambda_s1) = (self.lambda_t[t], self.lambda_t[s0], self.lambda_t[s1]);
 		let (alpha_t, alpha_s0) = (self.alpha_t[t], self.alpha_t[s0]);
 		let (sigma_t, sigma_s0) = (self.sigma_t[t], self.sigma_t[s0]);
@@ -269,34 +271,19 @@ impl DPMSolverMultistepScheduler {
 		let (d0, d1) = (m0, (1.0 / r0) * (m0 - m1));
 		match self.config.algorithm_type {
 			DPMSolverAlgorithmType::DPMSolverPlusPlus => match self.config.solver_type {
-				DPMSolverType::Midpoint => {
-					((sigma_t / sigma_s0) * &sample)
-						- (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
-						- 0.5 * (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d1
-				}
-				DPMSolverType::Heun => {
-					((sigma_t / sigma_s0) * &sample) - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
-						+ (alpha_t * ((std::f32::consts::E.powf(-h) - 1.0) / h + 1.0)) * d1
-				}
+				DPMSolverType::Midpoint => ((sigma_t / sigma_s0) * &sample) - (alpha_t * ((-h).exp() - 1.0)) * d0 - 0.5 * (alpha_t * ((-h).exp() - 1.0)) * d1,
+				DPMSolverType::Heun => ((sigma_t / sigma_s0) * &sample) - (alpha_t * ((-h).exp() - 1.0)) * d0 + (alpha_t * (((-h).exp() - 1.0) / h + 1.0)) * d1
 			},
 			DPMSolverAlgorithmType::DPMSolver => match self.config.solver_type {
-				DPMSolverType::Midpoint => {
-					(alpha_t / alpha_s0) * &sample
-						- (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d0
-						- 0.5 * (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d1
-				}
-				DPMSolverType::Heun => {
-					(alpha_t / alpha_s0) * &sample
-						- (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d0
-						- (sigma_t * ((std::f32::consts::E.powf(h) - 1.0) / h - 1.0)) * d1
-				}
+				DPMSolverType::Midpoint => (alpha_t / alpha_s0) * &sample - (sigma_t * (h.exp() - 1.0)) * d0 - 0.5 * (sigma_t * (h.exp() - 1.0)) * d1,
+				DPMSolverType::Heun => (alpha_t / alpha_s0) * &sample - (sigma_t * (h.exp() - 1.0)) * d0 - (sigma_t * ((h.exp() - 1.0) / h - 1.0)) * d1
 			}
 		}
 	}
 
 	fn multistep_dpm_solver_third_order_update(
 		&self,
-		model_output_list: &Vec<Option<Array4<f32>>>,
+		model_output_list: &VecDeque<Array4<f32>>,
 		timestep_list: [usize; 3],
 		prev_timestep: usize,
 		sample: ArrayView4<f32>
@@ -306,9 +293,9 @@ impl DPMSolverMultistepScheduler {
 		let (t, s0, s1, s2) =
 			(prev_timestep, timestep_list[timestep_list.len() - 1], timestep_list[timestep_list.len() - 2], timestep_list[timestep_list.len() - 3]);
 		let (m0, m1, m2) = (
-			model_output_list[model_output_list.len() - 1].as_ref().unwrap(),
-			model_output_list[model_output_list.len() - 2].as_ref().unwrap(),
-			model_output_list[model_output_list.len() - 3].as_ref().unwrap()
+			&model_output_list[model_output_list.len() - 1],
+			&model_output_list[model_output_list.len() - 2],
+			&model_output_list[model_output_list.len() - 3]
 		);
 		let (lambda_t, lambda_s0, lambda_s1, lambda_s2) = (self.lambda_t[t], self.lambda_t[s0], self.lambda_t[s1], self.lambda_t[s2]);
 		let (alpha_t, alpha_s0) = (self.alpha_t[t], self.alpha_t[s0]);
@@ -322,15 +309,14 @@ impl DPMSolverMultistepScheduler {
 
 		match self.config.algorithm_type {
 			DPMSolverAlgorithmType::DPMSolverPlusPlus => {
-				(sigma_t / sigma_s0) * &sample - (alpha_t * (std::f32::consts::E.powf(-h) - 1.0)) * d0
-					+ (alpha_t * ((std::f32::consts::E.powf(-h) - 1.0) / h + 1.0)) * d1
-					- (alpha_t * ((std::f32::consts::E.powf(-h) - 1.0 + h) / h.powi(2) - 0.5)) * d2
+				(sigma_t / sigma_s0) * &sample - (alpha_t * ((-h).exp() - 1.0)) * d0 + (alpha_t * (((-h).exp() - 1.0) / h + 1.0)) * d1
+					- (alpha_t * (((-h).exp() - 1.0 + h) / h.powi(2) - 0.5)) * d2
 			}
 			DPMSolverAlgorithmType::DPMSolver => {
 				(alpha_t / alpha_s0) * &sample
-					- (sigma_t * (std::f32::consts::E.powf(h) - 1.0)) * d0
-					- (sigma_t * ((std::f32::consts::E.powf(h) - 1.0) / h - 1.0)) * d1
-					- (sigma_t * ((std::f32::consts::E.powf(h) - 1.0 - h) / h.powi(2) - 0.5)) * d2
+					- (sigma_t * (h.exp() - 1.0)) * d0
+					- (sigma_t * ((h.exp() - 1.0) / h - 1.0)) * d1
+					- (sigma_t * ((h.exp() - 1.0 - h) / h.powi(2) - 0.5)) * d2
 			}
 		}
 	}
@@ -353,7 +339,7 @@ impl DiffusionScheduler for DPMSolverMultistepScheduler {
 		let timesteps = Array1::linspace(self.num_train_timesteps as f32 - 1.0, 0.0, num_inference_steps).map(|f| *f as usize);
 
 		self.timesteps = timesteps;
-		self.model_outputs = vec![None; self.config.solver_order as _];
+		self.model_outputs = VecDeque::with_capacity(self.config.solver_order);
 		self.lower_order_nums = 0;
 	}
 
@@ -370,14 +356,14 @@ impl DiffusionScheduler for DPMSolverMultistepScheduler {
 		let lower_order_second = (step_index == self.timesteps.len() - 2) && self.config.lower_order_final && self.timesteps.len() < 15;
 
 		let model_output = self.convert_model_output(model_output, timestep, sample);
-		for i in 0..self.config.solver_order - 1 {
-			self.model_outputs[i] = self.model_outputs[i + 1].clone();
+		let n_outputs = self.model_outputs.len();
+		for _ in n_outputs..self.config.solver_order - 1 {
+			self.model_outputs.pop_front();
 		}
-		let m_len = self.model_outputs.len();
-		self.model_outputs[m_len - 1] = Some(model_output.clone());
+		self.model_outputs.push_back(model_output.clone());
 
 		let prev_sample = if self.config.solver_order == 1 || self.lower_order_nums < 1 || lower_order_final {
-			self.dpm_solver_first_order_update(model_output, timestep, prev_timestep, sample)
+			self.dpm_solver_first_order_update(&model_output, timestep, prev_timestep, sample)
 		} else if self.config.solver_order == 2 || self.lower_order_nums < 2 || lower_order_second {
 			let timestep_list = [self.timesteps[step_index - 1], timestep];
 			self.multistep_dpm_solver_second_order_update(&self.model_outputs, timestep_list, prev_timestep, sample)

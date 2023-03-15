@@ -133,9 +133,11 @@ impl CLIPStandardTokenizer {
 		let batch_size = enc.len();
 		Ok(Array2::from_shape_vec(
 			(batch_size, self.len()),
-			self.encode(enc)?
+			self.tokenizer
+				.encode_batch(enc, true)
+				.map_err(|e| anyhow::anyhow!("{e:?}"))?
 				.iter()
-				.flat_map(|v| v.iter().map(|tok| *tok as _).collect::<Vec<i32>>())
+				.flat_map(|v| v.get_ids().iter().map(|tok| *tok as _).collect::<Vec<i32>>())
 				.collect()
 		)?)
 	}
