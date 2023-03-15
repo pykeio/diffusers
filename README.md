@@ -126,14 +126,14 @@ Typically, uint8 is higher quality and faster, but you can play around with the 
 
 A combination of 256x256 image generation via `StableDiffusionMemoryOptimizedPipeline` with a uint8 UNet only requires **1.3 GB** of memory usage.
 
-## Roadmap
-- [ ] Import from original Stable Diffusion checkpoints
-- [ ] Graph fusion for better optimization
+## [Roadmap](https://github.com/pykeio/diffusers/issues/22)
+- [x] Import from original Stable Diffusion checkpoints
+- [x] Graph fusion for better optimization
 - [ ] Implement img2img, inpainting, and upscaling ([#2](https://github.com/pykeio/diffusers/issues/2))
 - [ ] Textual inversion
 - [x] VAE approximation
 - [ ] CLIP layer skip
 - [ ] Rewrite scheduler system ([#16](https://github.com/pykeio/diffusers/issues/16))
-- [ ] Acceleration for M1 Macs ([#14](https://github.com/pykeio/diffusers/issues/14))
+- [x] Acceleration for M1 Macs ([#14](https://github.com/pykeio/diffusers/issues/14))
 - [ ] Web interface
 - [ ] Explore other backends (pyke's DragonML, [tract](https://github.com/sonos/tract))
