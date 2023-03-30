@@ -25,14 +25,14 @@ from typing import Dict, Optional
 import coloredlogs
 from fusion_options import FusionOptions
 from onnx import ModelProto, load_model
-from onnx_model_bart import BartOnnxModel
-from onnx_model_bert import BertOnnxModel
-from onnx_model_bert_keras import BertOnnxModelKeras
-from onnx_model_bert_tf import BertOnnxModelTF
+#from onnx_model_bart import BartOnnxModel
+#from onnx_model_bert import BertOnnxModel
+#from onnx_model_bert_keras import BertOnnxModelKeras
+#from onnx_model_bert_tf import BertOnnxModelTF
 from onnx_model_clip import ClipOnnxModel
-from onnx_model_gpt2 import Gpt2OnnxModel
-from onnx_model_t5 import T5OnnxModel
-from onnx_model_tnlr import TnlrOnnxModel
+#from onnx_model_gpt2 import Gpt2OnnxModel
+#from onnx_model_t5 import T5OnnxModel
+#from onnx_model_tnlr import TnlrOnnxModel
 from onnx_model_unet import UnetOnnxModel
 from onnx_model_vae import VaeOnnxModel
 
@@ -40,18 +40,18 @@ logger = logging.getLogger(__name__)
 
 # Map model type to tuple: optimizer class, export tools (pytorch, tf2onnx, keras2onnx), and default opt_level
 MODEL_TYPES = {
-    "bart": (BartOnnxModel, "pytorch", 1),
-    "bert": (BertOnnxModel, "pytorch", 1),
-    "bert_tf": (BertOnnxModelTF, "tf2onnx", 0),
-    "bert_keras": (BertOnnxModelKeras, "keras2onnx", 0),
-    "gpt2": (Gpt2OnnxModel, "pytorch", 1),
-    "gpt2_tf": (
-        Gpt2OnnxModel,
-        "tf2onnx",
-        0,
-    ),  # might add a class for GPT2OnnxModel for TF later.
-    "tnlr": (TnlrOnnxModel, "pytorch", 1),
-    "t5": (T5OnnxModel, "pytorch", 2),
+    #"bart": (BartOnnxModel, "pytorch", 1),
+    #"bert": (BertOnnxModel, "pytorch", 1),
+    #"bert_tf": (BertOnnxModelTF, "tf2onnx", 0),
+    #"bert_keras": (BertOnnxModelKeras, "keras2onnx", 0),
+    #"gpt2": (Gpt2OnnxModel, "pytorch", 1),
+    #"gpt2_tf": (
+    #    Gpt2OnnxModel,
+    #    "tf2onnx",
+    #    0,
+    #),  # might add a class for GPT2OnnxModel for TF later.
+    #"tnlr": (TnlrOnnxModel, "pytorch", 1),
+    #"t5": (T5OnnxModel, "pytorch", 2),
     # Stable Diffusion models
     "unet": (UnetOnnxModel, "pytorch", 1),
     "vae": (VaeOnnxModel, "pytorch", 1),
@@ -299,22 +299,6 @@ def optimize_model(
         logger.debug("Remove temporary model: {}".format(temp_model_path))
 
     return optimizer
-
-
-def get_fusion_statistics(optimized_model_path: str) -> Dict[str, int]:
-    """
-    Get counter of fused operators in optimized model.
-
-    Args:
-        optimized_model_path (str): the path of onnx model.
-
-    Returns:
-        A dictionary with operator type as key, and count as value
-    """
-    model = load_model(optimized_model_path, format=None, load_external_data=True)
-    optimizer = BertOnnxModel(model)
-    return optimizer.get_fused_operator_statistics()
-
 
 def _parse_arguments():
     parser = argparse.ArgumentParser(
