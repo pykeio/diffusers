@@ -6,10 +6,11 @@ imohash>=1.0.4
 numpy~=1.24
 OmegaConf>=2.3,<3
 onnx~=1.13.1
-onnxruntime==1.14.0
+onnxruntime-gpu==1.14.1
 safetensors==0.3.0
 scipy~=1.10
 spacy~=3.5
 termcolor>=2,<3
+tomli-w
 transformers>=4.21.0,<5
 yaspin~=2.3

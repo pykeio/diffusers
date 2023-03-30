@@ -15,9 +15,10 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+//#[serde(tag = "type")]
 #[serde(rename_all = "kebab-case")]
 pub enum DiffusionFramework {
-	Onnx
+	Onnx // Ort { opset: u8 }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

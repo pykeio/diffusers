@@ -29,7 +29,7 @@ lazy_static = "1.4"
 image = { version = "0.24", default-features = false }
 rand = "0.8"
 cfg-if = "1.0"
-ort = { git = "https://github.com/pykeio/ort.git", default-features = false }
+ort = { version = "1.14.3", default-features = false }
 ndarray_einsum_beta = "0.7.0"
 
 GSL = { version = "6.0", optional = true }
@@ -41,7 +41,7 @@ tokenizers = { version = "0.13", optional = true, default-features = false, feat
 [dev-dependencies]
 tokio = { version = "1.0", features = [ "full" ] }
 image = { version = "0.24", default-features = false, features = [ "png" ] }
-ort = { git = "https://github.com/pykeio/ort.git", default-features = false, features = [ "download-binaries" ] }
+ort = { version = "1.14.3", default-features = false, features = [ "download-binaries" ] }
 tracing-subscriber = "0.3"
 
 requestty = "0.5"

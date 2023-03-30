@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 import warnings
 
 from diffusers import AutoencoderKL, UNet2DConditionModel
@@ -28,6 +28,7 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import load_pipeline
 from imohash import hashfile
 import onnx
 from termcolor import cprint
+import tomli_w as toml
 import torch
 from transformers import CLIPTextModel, CLIPTokenizerFast
 from yaspin import yaspin
@@ -42,7 +43,7 @@ parser = ArgumentParser(prog='sd2pyke', description='Converts original Stable Di
 parser.add_argument('ckpt_path', type=Path, help='Path to the Stable Diffusion checkpoint to convert.')
 parser.add_argument('out_path', type=Path, help='Output path.')
 # !wget https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml
-parser.add_argument('-C', '--config-file', default=None, type=str, help='The YAML config file corresponding to the original architecture.')
+parser.add_argument('-C', '--config-file', default='v1-inference.yaml', type=str, help='The YAML config file corresponding to the original architecture.')
 parser.add_argument('--override-unet-sample-size', type=int, help='Override the sample size when converting the UNet.')
 parser.add_argument('--prediction-type', default=None, type=str, help="The prediction type that the model was trained on. Use 'epsilon' for Stable Diffusion v1.x and Stable Diffusion v2 Base. Use 'v-prediction' for Stable Diffusion v2.")
 parser.add_argument('-E', '--ema', action="store_true", help='Extract EMA weights from the checkpoint. EMA weights may yield higher quality images for inference.')
@@ -62,8 +63,12 @@ if not os.path.exists(out_path):
 	mkdirp(out_path)
 
 model_config: Dict[str, Any] = {
+	'v': 2,
 	'pipeline': 'stable-diffusion',
-	'framework': 'onnx'
+	'framework': {
+		'type': 'OrtE',
+		'opset': args.opset
+	}
 }
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -103,10 +108,53 @@ class UNet2DConditionModelIOWrapper(UNet2DConditionModel):
 		sample = UNet2DConditionModel.forward(self, sample, timestep, encoder_hidden_states, return_dict=True).sample # type: ignore
 		return (sample.to(dtype=IO_DTYPE),)
 
+# Copied from transformers.models.bart.modeling_bart._expand_mask
+def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+    """
+    Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
+    """
+    bsz, src_len = mask.size()
+    tgt_len = tgt_len if tgt_len is not None else src_len
+
+    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+
+    inverted_mask = 1.0 - expanded_mask
+
+    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+
 class CLIPTextModelIOWrapper(CLIPTextModel):
 	def forward(self, input_ids: torch.IntTensor) -> Tuple:
 		outputs: BaseModelOutputWithPooling = CLIPTextModel.forward(self, input_ids=input_ids, return_dict=True) # type: ignore
 		return (outputs.last_hidden_state.to(dtype=IO_DTYPE), outputs.pooler_output.to(dtype=IO_DTYPE))
+
+class CLIPTextModelEmbeddingIOWrapper(CLIPTextModel):
+	def forward(self, token_embeddings: torch.Tensor, attention_mask: Optional[torch.BoolTensor] = None, position_ids: Optional[torch.Tensor] = None) -> Tuple:
+		token_embeddings = token_embeddings.to(dtype=MODEL_DTYPE)
+
+		batch, seq_length, _ = token_embeddings.shape
+		if position_ids is None:
+			position_ids = self.text_model.embeddings.position_ids[:, :seq_length] # type: ignore
+		position_embeddings = self.text_model.embeddings.position_embedding(position_ids)
+		hidden_states = token_embeddings + position_embeddings
+
+		causal_attention_mask = self.text_model._build_causal_attention_mask(batch, seq_length, hidden_states.dtype).to(hidden_states.device)
+		if attention_mask is not None:
+			attention_mask = _expand_mask(attention_mask, hidden_states.dtype) # type: ignore
+
+		encoder_outputs = self.text_model.encoder(
+			inputs_embeds=hidden_states,
+			attention_mask=attention_mask,
+			causal_attention_mask=causal_attention_mask,
+			return_dict=True
+		)
+
+		last_hidden_state = encoder_outputs[0]
+		last_hidden_state = self.text_model.final_layer_norm(last_hidden_state)
+
+		return last_hidden_state.to(dtype=IO_DTYPE)
+
+	def encode_token_embeddings(self, input_ids: torch.IntTensor) -> torch.FloatTensor:
+		return self.text_model.embeddings.token_embedding(input_ids.view(-1, input_ids.size(-1))).to(dtype=IO_DTYPE)
 
 class AutoencoderKLIOWrapper(AutoencoderKL):
 	def encode(self, x: torch.Tensor) -> Tuple:
@@ -147,16 +195,29 @@ def convert_text_encoder(hf_root: Path) -> Tuple[Path, int, int]:
 		return_tensors='pt'
 	).input_ids.to(device=DEVICE, dtype=torch.int32)
 
-	onnx_export(
-		text_encoder,
-		model_args=(text_input,),
-		output_path=out_path / 'text_encoder.onnx',
-		ordered_input_names=['input_ids'],
-		output_names=['last_hidden_state', 'pooler_output'],
-		dynamic_axes={
-			"input_ids": {0: "batch", 1: "sequence"}
-		}
-	)
+	if True:
+		onnx_export(
+			text_encoder,
+			model_args=(text_input,),
+			output_path=out_path / 'text_encoder.onnx',
+			ordered_input_names=['input_ids'],
+			output_names=['last_hidden_state', 'pooler_output'],
+			dynamic_axes={
+				"input_ids": {0: "batch", 1: "sequence"}
+			}
+		)
+	else:
+		embed_input = text_encoder.encode_token_embeddings(text_input)
+		onnx_export(
+			text_encoder,
+			model_args=(embed_input,),
+			output_path=out_path / 'text_encoder.onnx',
+			ordered_input_names=['input_embeddings'],
+			output_names=['last_hidden_state'],
+			dynamic_axes={
+				"input_embeddings": {0: "batch", 1: "sequence"}
+			}
+		)
 
 	del text_encoder
 	collect_garbage()
@@ -167,11 +228,11 @@ def convert_text_encoder(hf_root: Path) -> Tuple[Path, int, int]:
 def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
 	unet = load_safetensors(UNet2DConditionModelIOWrapper, hf_path / 'unet', device=DEVICE, dtype=UNET_DTYPE)
 
-	if isinstance(unet.config.attention_head_dim, int): # type: ignore
-		slice_size = unet.config.attention_head_dim // 2 # type: ignore
-	else:
-		slice_size = min(unet.config.attention_head_dim) # type: ignore
-	unet.set_attention_slice(slice_size)
+	#if isinstance(unet.config.attention_head_dim, int): # type: ignore
+	#	slice_size = unet.config.attention_head_dim // 2 # type: ignore
+	#else:
+	#	slice_size = min(unet.config.attention_head_dim) # type: ignore
+	#unet.set_attention_slice(slice_size)
 
 	unet_model_size = 0
 	for param in unet.parameters():
@@ -200,7 +261,7 @@ def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple
 			torch.randn(2, (num_tokens * 3) - 2, text_hidden_size).to(device=DEVICE, dtype=IO_DTYPE)
 		),
 		output_path=unet_out_path / 'unet.onnx',
-		ordered_input_names=['sample', 'timestep', 'encoder_hidden_states', 'return_dict'],
+		ordered_input_names=['sample', 'timestep', 'encoder_hidden_states'],
 		output_names=['out_sample'],
 		dynamic_axes={
 			"sample": {0: "batch", 1: "channels", 2: "height", 3: "width"},
@@ -339,7 +400,7 @@ with torch.no_grad():
 
 		# TODO: safety checker
 
-		with open(out_path / 'diffusers.json', 'w') as f:
-			json.dump(model_config, f)
+		with open(out_path / 'pyke-diffusers.toml', 'wb') as f:
+			toml.dump(model_config, f)
 
 cprint(f'✨ Your model is ready! {str(out_path)}')

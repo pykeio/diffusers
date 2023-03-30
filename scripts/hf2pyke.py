@@ -32,6 +32,7 @@ from imohash import hashfile
 import onnx
 from onnxruntime.quantization import quantize_dynamic, QuantType
 from termcolor import cprint
+import tomli_w as toml
 import torch
 from transformers import CLIPTextModel, CLIPTokenizerFast
 from transformers.modeling_outputs import BaseModelOutputWithPooling
@@ -107,8 +108,12 @@ if model_index['_class_name'] != 'StableDiffusionPipeline':
 	sys.exit(1)
 
 model_config: Dict[str, Any] = {
+	'v': 2,
 	'pipeline': 'stable-diffusion',
-	'framework': 'onnx'
+	'framework': {
+		'type': 'OrtE',
+		'opset': args.opset
+	}
 }
 
 model_loader = load_accelerate
@@ -134,10 +139,48 @@ class UNet2DConditionModelIOWrapper(UNet2DConditionModel):
 		sample = UNet2DConditionModel.forward(self, sample, timestep, encoder_hidden_states, return_dict=True).sample # type: ignore
 		return (sample.to(dtype=IO_DTYPE),)
 
+# Copied from transformers.models.bart.modeling_bart._expand_mask
+def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+    """
+    Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
+    """
+    bsz, src_len = mask.size()
+    tgt_len = tgt_len if tgt_len is not None else src_len
+
+    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+
+    inverted_mask = 1.0 - expanded_mask
+
+    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+
 class CLIPTextModelIOWrapper(CLIPTextModel):
-	def forward(self, input_ids: torch.IntTensor) -> Tuple:
-		outputs: BaseModelOutputWithPooling = CLIPTextModel.forward(self, input_ids=input_ids, return_dict=True) # type: ignore
-		return (outputs.last_hidden_state.to(dtype=IO_DTYPE), outputs.pooler_output.to(dtype=IO_DTYPE))
+	def forward(self, token_embeddings: torch.Tensor, attention_mask: Optional[torch.BoolTensor] = None, position_ids: Optional[torch.Tensor] = None) -> Tuple:
+		token_embeddings = token_embeddings.to(dtype=MODEL_DTYPE)
+
+		batch, seq_length, _ = token_embeddings.shape
+		if position_ids is None:
+			position_ids = self.text_model.embeddings.position_ids[:, :seq_length] # type: ignore
+		position_embeddings = self.text_model.embeddings.position_embedding(position_ids)
+		hidden_states = token_embeddings + position_embeddings
+
+		causal_attention_mask = self.text_model._build_causal_attention_mask(batch, seq_length, hidden_states.dtype).to(hidden_states.device)
+		if attention_mask is not None:
+			attention_mask = _expand_mask(attention_mask, hidden_states.dtype) # type: ignore
+
+		encoder_outputs = self.text_model.encoder(
+			inputs_embeds=hidden_states,
+			attention_mask=attention_mask,
+			causal_attention_mask=causal_attention_mask,
+			return_dict=True
+		)
+
+		last_hidden_state = encoder_outputs[0]
+		last_hidden_state = self.text_model.final_layer_norm(last_hidden_state)
+
+		return last_hidden_state.to(dtype=IO_DTYPE)
+
+	def encode_token_embeddings(self, input_ids: torch.IntTensor) -> torch.FloatTensor:
+		return self.text_model.embeddings.token_embedding(input_ids.view(-1, input_ids.size(-1))).to(dtype=IO_DTYPE)
 
 class AutoencoderKLIOWrapper(AutoencoderKL):
 	def encode(self, x: torch.Tensor) -> Tuple:
@@ -178,14 +221,16 @@ def convert_text_encoder() -> Tuple[Path, int, int]:
 		return_tensors='pt'
 	).input_ids.to(device=DEVICE, dtype=torch.int32)
 
+	embed_input = text_encoder.encode_token_embeddings(text_input)
+
 	onnx_export(
 		text_encoder,
-		model_args=(text_input,),
+		model_args=(embed_input,),
 		output_path=out_path / 'text_encoder.onnx',
-		ordered_input_names=['input_ids'],
-		output_names=['last_hidden_state', 'pooler_output'],
+		ordered_input_names=['input_embeddings'],
+		output_names=['last_hidden_state'],
 		dynamic_axes={
-			"input_ids": {0: "batch", 1: "sequence"}
+			"input_embeddings": {0: "batch", 1: "sequence"}
 		}
 	)
 
@@ -307,7 +352,7 @@ def convert_safety_checker(vae_sample_size: int, vae_out_channels: int) -> Path:
 	else:
 		with accelerate.init_empty_weights():
 			safety_checker = SafetyCheckerIOWrapper(CLIPConfig.from_json_file(hf_path / 'safety_checker' / 'config.json')) # type: ignore
-		accelerate.load_checkpoint_and_dispatch(safety_checker, hf_path / 'safety_checker' / 'pytorch_model.bin', device_map='auto')
+		accelerate.load_checkpoint_and_dispatch(safety_checker, str(hf_path / 'safety_checker' / 'pytorch_model.bin'), device_map='auto')
 
 	safety_checker = safety_checker.to(dtype=MODEL_DTYPE, device=DEVICE)
 	safety_checker.eval()
@@ -406,8 +451,7 @@ with torch.no_grad():
 		"text-encoder": hashfile(text_encoder_path, hexdigest=True),
 		"unet": hashfile(unet_path, hexdigest=True),
 		"vae-encoder": hashfile(vae_encoder_path, hexdigest=True),
-		"vae-decoder": hashfile(vae_decoder_path, hexdigest=True),
-		"safety-checker": None
+		"vae-decoder": hashfile(vae_decoder_path, hexdigest=True)
 	}
 
 	if os.path.exists(hf_path / 'safety_checker') and not args.skip_safety_checker:
@@ -415,7 +459,7 @@ with torch.no_grad():
 		model_config['safety-checker'] = { "path": safety_checker_path.relative_to(out_path).as_posix() }
 		model_config['hashes']['safety-checker'] = hashfile(safety_checker_path, hexdigest=True)
 
-	with open(out_path / 'diffusers.json', 'w') as f:
-		json.dump(model_config, f)
+	with open(out_path / 'pyke-diffusers.toml', 'wb') as f:
+		toml.dump(model_config, f)
 
 cprint(f'✨ Your model is ready! {str(out_path)}')
