@@ -66,7 +66,7 @@ fusion_options = FusionOptions('unet')
 
 fusion_options.enable_gemm_fast_gelu = True
 fusion_options.enable_gelu_approximation = True
-fusion_options.use_multi_head_attention = True
+fusion_options.use_multi_head_attention = False
 
 fusion_options.enable_packed_kv = True
 fusion_options.enable_packed_qkv = False
