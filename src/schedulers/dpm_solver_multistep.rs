@@ -181,7 +181,7 @@ impl DPMSolverMultistepScheduler {
 
 		let alpha_t = alphas_cumprod.map(|f| f.sqrt());
 		let sigma_t = alphas_cumprod.map(|f| (1.0 - f).sqrt());
-		let lambda_t = alpha_t.map(|f| f.log(std::f32::consts::E)) - sigma_t.map(|f| f.log(std::f32::consts::E));
+		let lambda_t = alpha_t.map(|f| f.ln()) - sigma_t.map(|f| f.ln());
 
 		let timesteps = Array1::linspace(num_train_timesteps as f32 - 1.0, 0.0, num_train_timesteps).map(|f| *f as usize);
 

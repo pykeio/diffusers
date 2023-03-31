@@ -366,8 +366,7 @@ impl StableDiffusionPipeline {
 		let approx = einsum("blxy,lr->bxyr", &[&latents, &coefs]).expect("einsum error");
 		let mut images = Vec::new();
 		for approx_chunk in approx.axis_iter(Axis(0)) {
-			let approx_chunk = approx_chunk.insert_axis(Axis(0)).into_dimensionality()?;
-			let approx_chunk = approx_chunk.to_owned() * 1.2;
+			let approx_chunk = approx_chunk.insert_axis(Axis(0)).into_dimensionality()?.to_owned();
 			let image = self.to_image(approx_chunk.shape()[1] as _, approx_chunk.shape()[2] as _, &approx_chunk)?;
 			images.push(image);
 		}
@@ -384,7 +383,7 @@ impl StableDiffusionPipeline {
 			let image = self.vae_decoder.run(vec![InputTensor::from_array(latent_chunk.to_owned())])?;
 			let image: OrtOwnedTensor<'_, f32, IxDyn> = image[0].try_extract()?;
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
-			let f_image = f_image.permuted_axes([0, 2, 3, 1]).map(|f| (f / 2.0 + 0.5).clamp(0.0, 1.0));
+			let f_image = f_image.permuted_axes([0, 2, 3, 1]) / 2.0 + 0.5;
 
 			let image = self.to_image(f_image.shape()[1] as _, f_image.shape()[2] as _, &f_image)?;
 			images.push(image);
