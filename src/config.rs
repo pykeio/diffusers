@@ -15,10 +15,11 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-//#[serde(tag = "type")]
+#[serde(tag = "type")]
 #[serde(rename_all = "kebab-case")]
 pub enum DiffusionFramework {
-	Onnx // Ort { opset: u8 }
+	Onnx,
+	Orte { opset: u8 }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -50,8 +51,15 @@ pub struct CLIPFeatureExtractorConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct CLIPTextModelConfig {
+pub struct TextEmbeddingsConfig {
 	pub path: String
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct CLIPTextModelConfig {
+	pub path: String,
+	pub text_embeddings: Option<TextEmbeddingsConfig>
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -64,7 +72,8 @@ pub struct UNetConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct VAEConfig {
 	pub encoder: Option<String>,
-	pub decoder: String
+	pub decoder: String,
+	pub scale_factor: f32
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -77,6 +86,7 @@ pub struct SafetyCheckerConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct StableDiffusionModelHashes {
 	pub text_encoder: String,
+	pub text_embeddings: Option<String>,
 	pub unet: String,
 	pub vae_encoder: Option<String>,
 	pub vae_decoder: String,

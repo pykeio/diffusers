@@ -18,6 +18,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import tempfile
 from typing import Any, Dict, Optional, Tuple
 import warnings
@@ -66,7 +67,7 @@ model_config: Dict[str, Any] = {
 	'v': 2,
 	'pipeline': 'stable-diffusion',
 	'framework': {
-		'type': 'OrtE',
+		'type': 'orte',
 		'opset': args.opset
 	}
 }
@@ -127,7 +128,7 @@ class CLIPTextModelIOWrapper(CLIPTextModel):
 		outputs: BaseModelOutputWithPooling = CLIPTextModel.forward(self, input_ids=input_ids, return_dict=True) # type: ignore
 		return (outputs.last_hidden_state.to(dtype=IO_DTYPE), outputs.pooler_output.to(dtype=IO_DTYPE))
 
-class CLIPTextModelEmbeddingIOWrapper(CLIPTextModel):
+class CLIPPreembeddedTextModelIOWrapper(CLIPTextModel):
 	def forward(self, token_embeddings: torch.Tensor, attention_mask: Optional[torch.BoolTensor] = None, position_ids: Optional[torch.Tensor] = None) -> Tuple:
 		token_embeddings = token_embeddings.to(dtype=MODEL_DTYPE)
 
@@ -178,8 +179,8 @@ class SafetyCheckerIOWrapper(StableDiffusionSafetyChecker):
 		return (images.to(dtype=IO_DTYPE), has_nsfw_concepts)
 	
 @yaspin(text='Converting text encoder', spinner=SPINNER)
-def convert_text_encoder(hf_root: Path) -> Tuple[Path, int, int]:
-	text_encoder: CLIPTextModelIOWrapper = CLIPTextModelIOWrapper.from_pretrained(hf_root / 'text_encoder') # type: ignore
+def convert_text_encoder(hf_root: Path) -> Tuple[Path, Path, int, int]:
+	text_encoder: CLIPPreembeddedTextModelIOWrapper = CLIPPreembeddedTextModelIOWrapper.from_pretrained(hf_root / 'text_encoder') # type: ignore
 	text_encoder = text_encoder.to(dtype=MODEL_DTYPE, device=DEVICE)
 	text_encoder.eval()
 
@@ -195,34 +196,35 @@ def convert_text_encoder(hf_root: Path) -> Tuple[Path, int, int]:
 		return_tensors='pt'
 	).input_ids.to(device=DEVICE, dtype=torch.int32)
 
-	if True:
-		onnx_export(
-			text_encoder,
-			model_args=(text_input,),
-			output_path=out_path / 'text_encoder.onnx',
-			ordered_input_names=['input_ids'],
-			output_names=['last_hidden_state', 'pooler_output'],
-			dynamic_axes={
-				"input_ids": {0: "batch", 1: "sequence"}
-			}
-		)
-	else:
-		embed_input = text_encoder.encode_token_embeddings(text_input)
-		onnx_export(
-			text_encoder,
-			model_args=(embed_input,),
-			output_path=out_path / 'text_encoder.onnx',
-			ordered_input_names=['input_embeddings'],
-			output_names=['last_hidden_state'],
-			dynamic_axes={
-				"input_embeddings": {0: "batch", 1: "sequence"}
-			}
-		)
+	embed_input = text_encoder.encode_token_embeddings(text_input)
+	onnx_export(
+		text_encoder,
+		model_args=(embed_input,),
+		output_path=out_path / 'text_encoder.onnx',
+		ordered_input_names=['input_embeddings'],
+		output_names=['last_hidden_state'],
+		dynamic_axes={
+			"input_embeddings": {0: "batch", 1: "sequence"}
+		}
+	)
+
+	embeddings_path = out_path / 'text_embeddings.bin'
+	embeddings_file = open(embeddings_path, 'wb')
+	embeddings = text_encoder.text_model.embeddings.token_embedding.weight
+	assert embeddings.size(0) == num_tokens
+	assert embeddings.size(1) == text_hidden_size
+
+	embeddings_file.write(struct.pack('L', num_tokens))
+	embeddings_file.write(struct.pack('L', text_hidden_size))
+
+	for token in embeddings.detach().to(dtype=torch.float32):
+		for value in token:
+			embeddings_file.write(struct.pack('f', value.item()))
 
 	del text_encoder
 	collect_garbage()
 
-	return out_path / 'text_encoder.onnx', num_tokens, text_hidden_size
+	return out_path / 'text_encoder.onnx', embeddings_path, num_tokens, text_hidden_size
 
 @yaspin(text='Converting UNet', spinner=SPINNER)
 def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
@@ -264,9 +266,9 @@ def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple
 		ordered_input_names=['sample', 'timestep', 'encoder_hidden_states'],
 		output_names=['out_sample'],
 		dynamic_axes={
-			"sample": {0: "batch", 1: "channels", 2: "height", 3: "width"},
-			"timestep": {0: "batch"},
-			"encoder_hidden_states": {0: "batch", 1: "sequence"}
+			'sample': {0: 'batch', 1: 'channels', 2: 'height', 3: 'width'},
+			'timestep': {0: 'batch'},
+			'encoder_hidden_states': {0: 'batch', 1: 'sequence'}
 		}
 	)
 
@@ -280,7 +282,7 @@ def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple
 			str((out_path / 'unet.onnx').absolute().as_posix()),
 			save_as_external_data=True,
 			all_tensors_to_one_file=True,
-			location="unet.pb",
+			location='unet_weights.bin',
 			convert_attribute=False
 		)
 
@@ -293,42 +295,43 @@ def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple
 	return unet_out_path / 'unet.onnx', sample_size
 
 @yaspin(text='Converting VAE', spinner=SPINNER)
-def convert_vae(hf_path: Path, unet_sample_size: int) -> Tuple[Path, Path, int, int]:
+def convert_vae(hf_path: Path, unet_sample_size: int) -> Tuple[Path, Path, int, int, float]:
 	vae = load_safetensors(AutoencoderKLIOWrapper, hf_path / 'vae', device=DEVICE, dtype=MODEL_DTYPE)
 
 	vae_in_channels = vae.config['in_channels']
 	vae_sample_size = vae.config['sample_size']
 	vae_latent_channels = vae.config['latent_channels']
 	vae_out_channels = vae.config['out_channels']
+	vae_scale_factor = vae.config['scaling_factor']
 
 	vae.forward = lambda sample: vae.encode(sample)[0] # type: ignore
 	onnx_export(
 		vae,
-		model_args=(torch.randn(1, vae_in_channels, vae_sample_size, vae_sample_size).to(device=DEVICE, dtype=IO_DTYPE),),
+		model_args=(torch.randn(2, vae_in_channels, vae_sample_size, vae_sample_size).to(device=DEVICE, dtype=IO_DTYPE),),
 		output_path=out_path / 'vae_encoder.onnx',
 		ordered_input_names=['sample'],
 		output_names=['latent_sample'],
 		dynamic_axes={
-			"sample": {0: "batch", 1: "channels", 2: "height", 3: "width"}
+			'sample': {0: 'batch', 1: 'channels', 2: 'height', 3: 'width'}
 		}
 	)
 
 	vae.forward = vae.decode # type: ignore
 	onnx_export(
 		vae,
-		model_args=(torch.randn(1, vae_latent_channels, unet_sample_size, unet_sample_size).to(device=DEVICE, dtype=IO_DTYPE),),
+		model_args=(torch.randn(2, vae_latent_channels, unet_sample_size, unet_sample_size).to(device=DEVICE, dtype=IO_DTYPE),),
 		output_path=out_path / 'vae_decoder.onnx',
 		ordered_input_names=['latent_sample'],
 		output_names=['sample'],
 		dynamic_axes={
-			"latent_sample": {0: "batch", 1: "channels", 2: "height", 3: "width"}
+			'latent_sample': {0: 'batch', 1: 'channels', 2: 'height', 3: 'width'}
 		}
 	)
 
 	del vae
 	collect_garbage()
 
-	return out_path / 'vae_encoder.onnx', out_path / 'vae_decoder.onnx', vae_sample_size, vae_out_channels
+	return out_path / 'vae_encoder.onnx', out_path / 'vae_decoder.onnx', vae_sample_size, vae_out_channels, vae_scale_factor
 
 with torch.no_grad():
 	pipe = load_pipeline_from_original_stable_diffusion_ckpt(
@@ -382,20 +385,29 @@ with torch.no_grad():
 				'image-std': feature_extractor['image_std']
 			}
 
-		text_encoder_path, num_tokens, text_hidden_size = convert_text_encoder(tmp)
+		text_encoder_path, text_embeddings_path, num_tokens, text_hidden_size = convert_text_encoder(tmp)
 		unet_path, unet_sample_size = convert_unet(tmp, num_tokens, text_hidden_size)
-		vae_encoder_path, vae_decoder_path, vae_sample_size, vae_out_channels = convert_vae(tmp, unet_sample_size)
+		vae_encoder_path, vae_decoder_path, vae_sample_size, vae_out_channels, vae_scale_factor = convert_vae(tmp, unet_sample_size)
 
-		model_config['text-encoder'] = { "path": text_encoder_path.relative_to(out_path).as_posix() }
-		model_config['unet'] = { "path": unet_path.relative_to(out_path).as_posix() }
-		model_config['vae'] = { "encoder": vae_encoder_path.relative_to(out_path).as_posix(), "decoder": vae_decoder_path.relative_to(out_path).as_posix() }
+		model_config['text-encoder'] = {
+			'path': text_encoder_path.relative_to(out_path).as_posix(),
+			'text-embeddings': {
+				'path': text_embeddings_path.relative_to(out_path).as_posix()
+			}
+		}
+		model_config['unet'] = { 'path': unet_path.relative_to(out_path).as_posix() }
+		model_config['vae'] = {
+			'encoder': vae_encoder_path.relative_to(out_path).as_posix(),
+			'decoder': vae_decoder_path.relative_to(out_path).as_posix(),
+			'scale_factor': vae_scale_factor
+		}
 
 		model_config['hashes'] = {
-			"text-encoder": hashfile(text_encoder_path, hexdigest=True),
-			"unet": hashfile(unet_path, hexdigest=True),
-			"vae-encoder": hashfile(vae_encoder_path, hexdigest=True),
-			"vae-decoder": hashfile(vae_decoder_path, hexdigest=True),
-			"safety-checker": None
+			'text-encoder': hashfile(text_encoder_path, hexdigest=True),
+			'text-embeddings': hashfile(text_embeddings_path, hexdigest=True),
+			'unet': hashfile(unet_path, hexdigest=True),
+			'vae-encoder': hashfile(vae_encoder_path, hexdigest=True),
+			'vae-decoder': hashfile(vae_decoder_path, hexdigest=True)
 		}
 
 		# TODO: safety checker

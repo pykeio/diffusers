@@ -17,16 +17,17 @@ use std::fmt::Debug;
 use image::DynamicImage;
 use ndarray::Array4;
 
-pub use self::impl_main::*;
-pub use self::impl_memory_optimized::*;
-use crate::{DiffusionDeviceControl, Prompt};
-
-pub(crate) mod lpw;
-
 mod impl_img2img;
 mod impl_main;
-mod impl_memory_optimized;
+// mod impl_memory_optimized;
 mod impl_txt2img;
+
+pub(crate) mod lpw;
+pub(crate) mod text_embeddings;
+
+pub use self::impl_main::*;
+// pub use self::impl_memory_optimized::*;
+use crate::{DiffusionDeviceControl, Prompt};
 
 /// Options for the Stable Diffusion pipeline. This includes options like device control and long prompt weighting.
 #[derive(Debug, Clone)]

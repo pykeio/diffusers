@@ -15,7 +15,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use image::DynamicImage;
-use ndarray::{Array4, ArrayD};
+use ndarray::{Array4, ArrayD, ArrayView4};
 use ort::Environment;
 
 use super::stable_diffusion::StableDiffusionPipeline;
@@ -80,12 +80,12 @@ impl SafeStableDiffusionPipeline {
 	}
 
 	/// Decodes UNet latents via a cheap approximation into an array of [`image::DynamicImage`]s.
-	pub fn approximate_decode_latents(&self, latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
+	pub fn approximate_decode_latents(&self, latents: ArrayView4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
 		self.pipeline.approximate_decode_latents(latents)
 	}
 
 	/// Decodes UNet latents via the variational autoencoder into an array of [`image::DynamicImage`]s.
-	pub fn decode_latents(&self, latents: Array4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
+	pub fn decode_latents(&self, latents: ArrayView4<f32>) -> anyhow::Result<Vec<DynamicImage>> {
 		self.pipeline.decode_latents(latents)
 	}
 

@@ -24,6 +24,7 @@ use ort::{
 };
 
 use super::{StableDiffusionOptions, StableDiffusionTxt2ImgOptions};
+use crate::text_embeddings::TextEmbeddings;
 use crate::{
 	clip::CLIPStandardTokenizer,
 	config::{DiffusionFramework, DiffusionPipeline, StableDiffusionConfig, TokenizerConfig},
@@ -58,7 +59,7 @@ pub struct StableDiffusionPipeline {
 	vae_encoder: Option<Session>,
 	vae_decoder: Session,
 	text_encoder: Session,
-	tokenizer: CLIPStandardTokenizer,
+	text_embeddings: TextEmbeddings,
 	pub(crate) unet: Session,
 	safety_checker: Option<Session>,
 	#[allow(dead_code)]
@@ -99,6 +100,7 @@ impl StableDiffusionPipeline {
 			#[allow(unreachable_patterns)]
 			_ => anyhow::bail!("not a clip tokenizer")
 		};
+		let text_embeddings = TextEmbeddings::from_file(&config.text_encoder.text_embeddings.as_ref().unwrap().path, tokenizer)?;
 
 		let text_encoder = SessionBuilder::new(environment)?
 			.with_execution_providers([options.devices.text_encoder.clone().into()])?
@@ -140,7 +142,7 @@ impl StableDiffusionPipeline {
 			vae_encoder,
 			vae_decoder,
 			text_encoder,
-			tokenizer,
+			text_embeddings,
 			unet,
 			safety_checker,
 			feature_extractor: None
@@ -194,7 +196,7 @@ impl StableDiffusionPipeline {
 			self.replace_safety_checker(path)?
 		}
 
-		self.tokenizer = match &new_config.tokenizer {
+		let tokenizer = match &new_config.tokenizer {
 			TokenizerConfig::CLIPTokenizer {
 				path,
 				model_max_length,
@@ -204,6 +206,7 @@ impl StableDiffusionPipeline {
 			#[allow(unreachable_patterns)]
 			_ => anyhow::bail!("not a clip tokenizer")
 		};
+		self.text_embeddings = TextEmbeddings::from_file(&new_config.text_encoder.text_embeddings.as_ref().unwrap().path, tokenizer)?;
 
 		self.options.clone_from(&options);
 		self.config = new_config;
@@ -312,9 +315,9 @@ impl StableDiffusionPipeline {
 			None
 		};
 
-		let text_embeddings = if self.options.lpw {
+		let text_embeddings = {
 			let embeddings = crate::pipelines::lpw::get_weighted_text_embeddings(
-				&self.tokenizer,
+				&self.text_embeddings,
 				&self.text_encoder,
 				prompt,
 				if do_classifier_free_guidance {
@@ -332,22 +335,6 @@ impl StableDiffusionPipeline {
 				}
 			}
 			text_embeddings.into_dyn()
-		} else {
-			let text_input_ids = self.tokenizer.encode_for_text_model(prompt.0)?.into_dyn();
-			let text_embeddings = self.text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
-			let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
-
-			if do_classifier_free_guidance {
-				let uncond_input = self
-					.tokenizer
-					.encode_for_text_model(negative_prompt.unwrap_or_else(|| Prompt::default_batched(batch_size)).0)?
-					.into_dyn();
-				let uncond_embeddings = self.text_encoder.run(vec![InputTensor::from_array(uncond_input)])?;
-				let uncond_embeddings: ArrayD<f32> = uncond_embeddings[0].try_extract()?.view().to_owned();
-				text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
-			}
-
-			text_embeddings
 		};
 
 		Ok(text_embeddings)
