@@ -40,7 +40,7 @@ fn main() -> anyhow::Result<()> {
 				unet: DiffusionDevice::CUDA(
 					0,
 					Some(CUDADeviceOptions {
-						memory_limit: Some(3000000000),
+						memory_limit: Some(3500000000),
 						arena_extend_strategy: Some(ArenaExtendStrategy::SameAsRequested),
 						..Default::default()
 					})
