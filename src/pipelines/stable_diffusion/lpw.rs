@@ -230,6 +230,9 @@ pub fn get_unweighted_text_embeddings(
 		}
 		Ok(x1)
 	} else {
+		let text_input = text_input.into_raw_vec();
+		let text_input = embeddings.embed(text_input.iter().map(|f| *f as u32).collect());
+
 		let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input.into_dyn())])?;
 		Ok(text_embeddings[0].try_extract()?.view().to_owned().into_dimensionality().unwrap())
 	}
