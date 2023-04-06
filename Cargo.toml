@@ -37,6 +37,7 @@ GSL = { version = "6.0", optional = true }
 
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
+toml = "0.7"
 tokenizers = { version = "0.13", optional = true, default-features = false, features = [ "onig" ] }
 
 [dev-dependencies]
