@@ -1,7 +1,7 @@
 use std::{
 	collections::HashMap,
 	fs::File,
-	io::{self, Read},
+	io::{self, BufRead, BufReader, Read},
 	path::{Path, PathBuf}
 };
 
@@ -25,10 +25,10 @@ pub struct TextEmbeddings {
 impl TextEmbeddings {
 	pub fn from_file<P: AsRef<Path>>(path: P, tokenizer: CLIPStandardTokenizer) -> io::Result<Self> {
 		let path = path.as_ref();
-		Self::from_reader(File::open(path)?, tokenizer)
+		Self::from_reader(BufReader::new(File::open(path)?), tokenizer)
 	}
 
-	pub fn from_reader<R: Read>(mut reader: R, tokenizer: CLIPStandardTokenizer) -> io::Result<Self> {
+	pub fn from_reader<R: BufRead>(mut reader: R, tokenizer: CLIPStandardTokenizer) -> io::Result<Self> {
 		let n_tokens = reader.read_u32::<LittleEndian>()?;
 		let text_hidden_size = reader.read_u32::<LittleEndian>()?;
 
@@ -48,10 +48,10 @@ impl TextEmbeddings {
 
 	pub fn add_token_from_file<P: AsRef<PathBuf>>(&mut self, path: P) -> io::Result<AddedToken> {
 		let path = path.as_ref();
-		self.add_token_from_reader(File::open(path)?)
+		self.add_token_from_reader(BufReader::new(File::open(path)?))
 	}
 
-	pub fn add_token_from_reader<R: Read>(&mut self, mut reader: R) -> io::Result<AddedToken> {
+	pub fn add_token_from_reader<R: BufRead>(&mut self, mut reader: R) -> io::Result<AddedToken> {
 		let n_vectors = reader.read_u32::<LittleEndian>()?;
 		let text_hidden_size = reader.read_u32::<LittleEndian>()?;
 		assert_eq!(text_hidden_size, self.text_hidden_size);
