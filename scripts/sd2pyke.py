@@ -184,9 +184,9 @@ def convert_text_encoder(hf_root: Path) -> Tuple[Path, Path, int, int]:
 	text_encoder = text_encoder.to(dtype=MODEL_DTYPE, device=DEVICE)
 	text_encoder.eval()
 
-	num_tokens = text_encoder.config.max_position_embeddings
+	num_tokens = len(tokenizer)
 	text_hidden_size = text_encoder.config.hidden_size
-	max_length = tokenizer.model_max_length
+	max_length = text_encoder.config.max_position_embeddings
 
 	text_input: torch.IntTensor = tokenizer(
 		"It's ocean law! If it's in the ocean long enough, it's yours!",
@@ -214,17 +214,17 @@ def convert_text_encoder(hf_root: Path) -> Tuple[Path, Path, int, int]:
 	assert embeddings.size(0) == num_tokens
 	assert embeddings.size(1) == text_hidden_size
 
-	embeddings_file.write(struct.pack('L', num_tokens))
-	embeddings_file.write(struct.pack('L', text_hidden_size))
+	embeddings_file.write(struct.pack('<I', num_tokens))
+	embeddings_file.write(struct.pack('<I', text_hidden_size))
 
 	for token in embeddings.detach().to(dtype=torch.float32):
 		for value in token:
-			embeddings_file.write(struct.pack('f', value.item()))
+			embeddings_file.write(struct.pack('<f', value.item()))
 
 	del text_encoder
 	collect_garbage()
 
-	return out_path / 'text_encoder.onnx', embeddings_path, num_tokens, text_hidden_size
+	return out_path / 'text_encoder.onnx', embeddings_path, max_length, text_hidden_size
 
 @yaspin(text='Converting UNet', spinner=SPINNER)
 def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
