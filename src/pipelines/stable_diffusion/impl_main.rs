@@ -169,10 +169,13 @@ impl StableDiffusionPipeline {
 	/// ```
 	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<StableDiffusionOptions>) -> anyhow::Result<Self> {
 		let new_root: PathBuf = new_root.into();
-		let new_config: DiffusionPipeline = serde_json::from_reader(fs::read(new_root.join("diffusers.json"))?.as_slice())?;
+		let new_config: DiffusionPipeline = toml::from_str(&fs::read_to_string(new_root.join("pyke-diffusers.toml"))?)?;
 		let new_config: StableDiffusionConfig = match new_config {
 			DiffusionPipeline::StableDiffusion { framework, inner } => {
-				assert_eq!(framework, DiffusionFramework::Onnx);
+				match framework {
+					DiffusionFramework::Orte { .. } => (),
+					_ => panic!("bad framework")
+				}
 				inner
 			}
 			#[allow(unreachable_patterns)]
@@ -209,7 +212,7 @@ impl StableDiffusionPipeline {
 			#[allow(unreachable_patterns)]
 			_ => anyhow::bail!("not a clip tokenizer")
 		};
-		self.text_embeddings = TextEmbeddings::from_file(&new_config.text_encoder.text_embeddings.as_ref().unwrap().path, tokenizer)?;
+		self.text_embeddings = TextEmbeddings::from_file(new_root.join(&new_config.text_encoder.text_embeddings.as_ref().unwrap().path), tokenizer)?;
 
 		self.options.clone_from(&options);
 		self.config = new_config;
