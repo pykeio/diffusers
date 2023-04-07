@@ -210,16 +210,15 @@ def convert_text_encoder(hf_root: Path) -> Tuple[Path, Path, int, int]:
 
 	embeddings_path = out_path / 'text_embeddings.bin'
 	embeddings_file = open(embeddings_path, 'wb')
-	embeddings = text_encoder.text_model.embeddings.token_embedding.weight
+	embeddings = text_encoder.text_model.embeddings.token_embedding.weight.detach()
 	assert embeddings.size(0) == num_tokens
 	assert embeddings.size(1) == text_hidden_size
 
 	embeddings_file.write(struct.pack('<I', num_tokens))
 	embeddings_file.write(struct.pack('<I', text_hidden_size))
 
-	for token in embeddings.detach().to(dtype=torch.float32):
-		for value in token:
-			embeddings_file.write(struct.pack('<f', value.item()))
+	embeddings = embeddings.to(dtype=torch.float32).cpu().numpy()
+	embeddings.tofile(embeddings_file)
 
 	del text_encoder
 	collect_garbage()
@@ -399,7 +398,7 @@ with torch.no_grad():
 		model_config['vae'] = {
 			'encoder': vae_encoder_path.relative_to(out_path).as_posix(),
 			'decoder': vae_decoder_path.relative_to(out_path).as_posix(),
-			'scale_factor': vae_scale_factor
+			'scale-factor': vae_scale_factor
 		}
 
 		model_config['hashes'] = {
