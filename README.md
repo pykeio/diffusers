@@ -1,6 +1,7 @@
 <div align=center>
     <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.webp" width="100%" alt="pyke Diffusers">
     <a href="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/gallery0.webp" target="_blank"><img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/gallery0.webp" width="100%" alt="Gallery of generated images"></a>
+    <a href="https://github.com/pykeio/diffusers/actions/workflows/test.yml"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/pykeio/diffusers/test.yml?branch=v2&style=for-the-badge"></a> <a href="https://crates.io/crates/pyke-diffusers" target="_blank"><img alt="Crates.io" src="https://img.shields.io/crates/d/ort?style=for-the-badge"></a> <a href="https://discord.gg/BAkXJ6VjCz"><img alt="Discord" src="https://img.shields.io/discord/1029216970027049072?style=for-the-badge&logo=discord&logoColor=white"></a>
     <hr />
 </div>
 
@@ -137,5 +138,5 @@ A combination of 256x256 image generation via `StableDiffusionMemoryOptimizedPip
 - [ ] Rewrite scheduler system ([#16](https://github.com/pykeio/diffusers/issues/16))
 - [x] Acceleration for M1 Macs ([#14](https://github.com/pykeio/diffusers/issues/14))
 - [ ] Web interface
-- [ ] Batch generation
+- [x] Batch generation
 - [ ] Explore other backends (pyke's DragonML, [tract](https://github.com/sonos/tract))

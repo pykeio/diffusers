@@ -1,5 +1,5 @@
 use image::DynamicImage;
-use ndarray::{concatenate, Array1, Array4, ArrayD, Axis, IxDyn};
+use ndarray::{concatenate, s, Array1, Array4, ArrayD, Axis, IxDyn};
 use ndarray_rand::rand_distr::StandardNormal;
 use ndarray_rand::RandomExt;
 use num_traits::ToPrimitive;
@@ -181,9 +181,10 @@ impl StableDiffusionTxt2ImgOptions {
 
 			let mut noise_pred: Array4<f32> = noise_pred.clone();
 			if do_classifier_free_guidance {
-				let mut noise_pred_chunks = noise_pred.axis_iter(Axis(0));
-				let (noise_pred_uncond, noise_pred_text) = (noise_pred_chunks.next().unwrap(), noise_pred_chunks.next().unwrap());
-				let (noise_pred_uncond, noise_pred_text) = (noise_pred_uncond.insert_axis(Axis(0)), noise_pred_text.insert_axis(Axis(0)));
+				assert!(noise_pred.shape()[0] % 2 == 0);
+				let split_len = (noise_pred.shape()[0] / 2) as isize;
+				let noise_pred_uncond = noise_pred.slice(s![..split_len, .., .., ..]);
+				let noise_pred_text = noise_pred.slice(s![split_len.., .., .., ..]);
 				noise_pred = &noise_pred_uncond + self.guidance_scale * (&noise_pred_text - &noise_pred_uncond);
 			}
 

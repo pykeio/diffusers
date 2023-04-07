@@ -207,8 +207,7 @@ pub fn get_unweighted_text_embeddings(
 				InputTensor::from_array(text_input_chunk.into_dyn())
 			} else {
 				// pre-embed
-				let text_input_chunk = text_input_chunk.into_raw_vec();
-				InputTensor::from_array(embeddings.embed(text_input_chunk.iter().map(|f| *f as u32).collect()).into_dyn())
+				InputTensor::from_array(embeddings.embed(text_input_chunk).into_dyn())
 			};
 
 			let chunk_embeddings = text_encoder.run(vec![text_input_chunk])?;
@@ -241,8 +240,7 @@ pub fn get_unweighted_text_embeddings(
 			InputTensor::from_array(text_input.into_dyn())
 		} else {
 			// pre-embed
-			let text_input = text_input.into_raw_vec();
-			InputTensor::from_array(embeddings.embed(text_input.iter().map(|f| *f as u32).collect()).into_dyn())
+			InputTensor::from_array(embeddings.embed(text_input).into_dyn())
 		};
 
 		let text_embeddings = text_encoder.run(vec![text_input])?;
@@ -300,7 +298,7 @@ pub fn get_weighted_text_embeddings(
 			.slice(s![.., .., NewAxis])
 			.to_owned();
 	let current_mean = text_embeddings.mean_axis(Axis(2)).unwrap().mean_axis(Axis(1)).unwrap();
-	let text_embeddings = text_embeddings * (previous_mean / current_mean);
+	let text_embeddings = text_embeddings * (previous_mean / current_mean).insert_axis(Axis(1)).insert_axis(Axis(2));
 
 	let uncond_embeddings = if let Some((uncond_tokens, uncond_weights)) = uncond_padded {
 		let uncond_embeddings = get_unweighted_text_embeddings(
@@ -316,7 +314,7 @@ pub fn get_weighted_text_embeddings(
 				.slice(s![.., .., NewAxis])
 				.to_owned();
 		let current_mean = uncond_embeddings.mean_axis(Axis(2)).unwrap().mean_axis(Axis(1)).unwrap();
-		Some(uncond_embeddings * (previous_mean / current_mean))
+		Some(uncond_embeddings * (previous_mean / current_mean).insert_axis(Axis(1)).insert_axis(Axis(2)))
 	} else {
 		None
 	};

@@ -6,7 +6,7 @@ use std::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use ndarray::{concatenate, Array2, Array3, Axis};
+use ndarray::{concatenate, stack, Array2, Array3, Axis};
 
 use crate::clip::CLIPStandardTokenizer;
 
@@ -89,14 +89,19 @@ impl TextEmbeddings {
 		AddedToken { tok, tid: token_id }
 	}
 
-	pub fn embed(&self, token_ids: Vec<u32>) -> Array3<f32> {
-		let mut embeds = Vec::with_capacity(token_ids.len());
-		for tok in token_ids {
-			let tok = self.tokens.get(&tok).unwrap();
-			embeds.push(tok.view());
+	pub fn embed(&self, token_ids: Array2<i32>) -> Array3<f32> {
+		let (batch_size, max_len) = (token_ids.shape()[0], token_ids.shape()[1]);
+		let mut embeds = Vec::with_capacity(batch_size);
+		for batch in token_ids.axis_iter(Axis(0)) {
+			let mut batch_embeds = Vec::with_capacity(max_len);
+			for tok_id in batch {
+				let tok = self.tokens.get(&(*tok_id as u32)).unwrap();
+				batch_embeds.push(tok.view());
+			}
+			embeds.push(concatenate(Axis(0), &batch_embeds).unwrap());
 		}
-		let embeds = concatenate(Axis(0), &embeds).unwrap();
-		embeds.insert_axis(Axis(0))
+
+		stack(Axis(0), &embeds.iter().map(|f| f.view()).collect::<Vec<_>>()).unwrap()
 	}
 
 	pub fn len(&self) -> usize {
