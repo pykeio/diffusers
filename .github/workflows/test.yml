@@ -55,7 +55,7 @@ jobs:
             ubuntu-stable-
             ubuntu-
       - name: Set ORT_DYLIB_PATH
-        run: echo "ORT_DYLIB_PATH=../libonnxruntime.so.1.14.1" >> $GITHUB_ENV
+        run: echo "ORT_DYLIB_PATH=target/debug/libonnxruntime.so.1.14.1" >> $GITHUB_ENV
       - uses: actions-rs/cargo@v1
         with:
           command: test
