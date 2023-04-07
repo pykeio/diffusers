@@ -1,5 +1,6 @@
 <div align=center>
-    <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.png" width="100%" alt="pyke Diffusers">
+    <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.webp" width="100%" alt="pyke Diffusers">
+    <a href="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/gallery0.webp" target="_blank"><img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/gallery0.webp" width="100%" alt="Gallery of generated images"></a>
     <hr />
 </div>
 
@@ -19,23 +20,23 @@ pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretraine
 - [Roadmap](#roadmap)
 
 ## Features
-- Text-to-image for Stable Diffusion v1 & v2
-- Optimized for both CPU and GPU inference
-- Memory-efficient pipelines to run with <2GB of RAM!
-- \>77 token prompts
-- Prompt weighting, e.g. `a (((house:1.3)) [on] a (hill:0.5), sun, (((sky))).`
-- Implements DDIM, DDPM, DPM/DPM++, Euler & Euler a, LMS schedulers
+- 🔮 **Text-to-image** for Stable Diffusion v1 & v2
+- ⚡ **Optimized** for both CPU and GPU inference
+- 🪶 **Memory-efficient** pipelines to run with **<2GB of RAM**!
+- 🔃 **Textual inversion** in positive & negative prompts
+- ✒️ **Prompt weighting**, e.g. `a (((house:1.3)) [on] a (hill:0.5), sun, (((sky))).`
+- 📋 **Implements many schedulers**: DPM/DPM++, DDIM, DDPM, Euler/Euler a, LMS
 
 ## Prerequisites
 You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 
-- If using CPU: recent (no earlier than Haswell/Zen) x86-64 CPU for best results. ARM64 supported but not recommended. For acceleration, see notes for [OpenVINO](https://onnxruntime.ai/docs/execution-providers/OpenVINO-ExecutionProvider.html#requirements), [oneDNN](https://onnxruntime.ai/docs/execution-providers/oneDNN-ExecutionProvider.html), [ACL](https://onnxruntime.ai/docs/execution-providers/ACL-ExecutionProvider.html), [SNPE](https://onnxruntime.ai/docs/execution-providers/SNPE-ExecutionProvider.html)
-- If using CUDA: **CUDA v11.[x](https://docs.nvidia.com/deploy/cuda-compatibility/#minor-version-compatibility)**, **cuDNN v8.2.x** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements)</sup>
-- If using TensorRT: **CUDA v11.[x](https://docs.nvidia.com/deploy/cuda-compatibility/#minor-version-compatibility)**, **TensorRT v8.4** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html)</sup>
+- If using CPU: recent (no earlier than Haswell/Zen) x86-64 CPU for best results. ARM64 supported is supported, but only recommended for use with Apple silicon hardware.
+- If using CUDA: **CUDA >= v11.6**, **cuDNN v8.2.x** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements)</sup>
+- If using TensorRT: **CUDA >= v11.6**, **TensorRT v8.4** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html)</sup>
 - If using ROCm: **ROCm v5.2** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html)</sup>
 - If using DirectML: **DirectX 12 compatible GPU**, **Windows 10 v1903+** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)</sup>
 
-Only generic CPU, CUDA, and TensorRT have prebuilt binaries available (*for now*). Other execution providers will require you to manually build them; see the ONNX Runtime docs for more info. Additionally, you'll need to [make `ort` link to your custom-built binaries](https://github.com/pykeio/ort#execution-providers).
+Only generic CPU, CUDA, and TensorRT have prebuilt binaries available (*for now*). Other execution providers will require you to manually build them; see the [ONNX Runtime docs](https://onnxruntime.ai/docs/execution-providers/) for more info. Additionally, you'll need to [make `ort` link to your custom-built binaries](https://github.com/pykeio/ort#execution-providers).
 
 ### LMS notes
 > **Note**:
@@ -130,10 +131,11 @@ A combination of 256x256 image generation via `StableDiffusionMemoryOptimizedPip
 - [x] Import from original Stable Diffusion checkpoints
 - [x] Graph fusion for better optimization
 - [ ] Implement img2img, inpainting, and upscaling ([#2](https://github.com/pykeio/diffusers/issues/2))
-- [ ] Textual inversion
+- [x] Textual inversion
 - [x] VAE approximation
 - [ ] CLIP layer skip
 - [ ] Rewrite scheduler system ([#16](https://github.com/pykeio/diffusers/issues/16))
 - [x] Acceleration for M1 Macs ([#14](https://github.com/pykeio/diffusers/issues/14))
 - [ ] Web interface
+- [ ] Batch generation
 - [ ] Explore other backends (pyke's DragonML, [tract](https://github.com/sonos/tract))

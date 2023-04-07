@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.png" width="100%" alt="pyke Diffusers">
+//! <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.webp" width="100%" alt="pyke Diffusers">
 //!
 //! `pyke-diffusers` is a modular library for pretrained diffusion model inference using [ONNX Runtime], inspired by
 //! [Hugging Face diffusers].
