@@ -59,7 +59,9 @@ pub struct StableDiffusionPipeline {
 	vae_encoder: Option<Session>,
 	vae_decoder: Session,
 	text_encoder: Session,
-	text_embeddings: TextEmbeddings,
+	/// The [text embeddings](TextEmbeddings) used by the text encoder. This can be used to add textual inversion
+	/// weights.
+	pub text_embeddings: TextEmbeddings,
 	pub(crate) unet: Session,
 	safety_checker: Option<Session>,
 	#[allow(dead_code)]
@@ -67,6 +69,32 @@ pub struct StableDiffusionPipeline {
 }
 
 impl StableDiffusionPipeline {
+	/// A recommended 'safety concept' for original Stable Diffusion models. This prompt is designed to be used as a
+	/// negative prompt to prevent the model from generating potentially harmful content.
+	///
+	/// ```
+	/// # fn main() -> anyhow::Result<()> {
+	/// use pyke_diffusers::{
+	/// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions,
+	/// 	StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
+	/// };
+	///
+	/// let environment = OrtEnvironment::default().into_arc();
+	/// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
+	/// let pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
+	///
+	/// let imgs = StableDiffusionTxt2ImgOptions::default()
+	/// 	.with_prompts("photo of a red fox", Some(StableDiffusionPipeline::SAFETY_CONCEPT.into()))
+	/// 	.run(&pipeline, &mut scheduler)?;
+	/// # Ok(())
+	/// # }
+	/// ```
+	///
+	/// This is not recommended for fine-tuned models, e.g. Waifu Diffusion or AnythingV3 (a negative prompt of simply
+	/// `(nsfw:1.05)` would probably work better for these models)
+	pub const SAFETY_CONCEPT: &str = "an image showing hate, harassment, violence, suffering, humiliation, harm, suicide, sexual, nudity, bodily fluids, blood, obscene gestures, illegal activity, drug use, theft, vandalism, weapons, child abuse, brutality, cruelty";
+
 	/// Creates a new Stable Diffusion pipeline, loading models from `root`.
 	///
 	/// ```
@@ -99,7 +127,7 @@ impl StableDiffusionPipeline {
 				model_max_length,
 				bos_token,
 				eos_token
-			} => CLIPStandardTokenizer::new(root.join(path.clone()), !options.lpw, *model_max_length, *bos_token, *eos_token)?,
+			} => CLIPStandardTokenizer::new(root.join(path.clone()), *model_max_length, *bos_token, *eos_token)?,
 			#[allow(unreachable_patterns)]
 			_ => anyhow::bail!("not a clip tokenizer")
 		};
@@ -208,7 +236,7 @@ impl StableDiffusionPipeline {
 				model_max_length,
 				bos_token,
 				eos_token
-			} => CLIPStandardTokenizer::new(new_root.join(path.clone()), !options.lpw, *model_max_length, *bos_token, *eos_token)?,
+			} => CLIPStandardTokenizer::new(new_root.join(path.clone()), *model_max_length, *bos_token, *eos_token)?,
 			#[allow(unreachable_patterns)]
 			_ => anyhow::bail!("not a clip tokenizer")
 		};
@@ -233,7 +261,7 @@ impl StableDiffusionPipeline {
 	/// ```no_run
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline};
-	/// let environment = OrtEnvironment::default().into_arc();
+	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let mut pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline.replace_unet("./anything/unet.onnx")?;
@@ -268,7 +296,7 @@ impl StableDiffusionPipeline {
 	/// ```no_run
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{StableDiffusionOptions, StableDiffusionPipeline, OrtEnvironment};
-	/// let environment = OrtEnvironment::default().into_arc();
+	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let mut pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline.replace_vae("./anything/vae-decoder.onnx", Some("./anything/vae-encoder.onnx"))?;

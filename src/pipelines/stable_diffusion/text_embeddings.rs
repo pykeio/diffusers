@@ -1,13 +1,12 @@
 use std::{
 	collections::HashMap,
 	fs::File,
-	io::{self, BufRead, BufReader, Read},
+	io::{self, BufRead, BufReader},
 	path::{Path, PathBuf}
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use ndarray::{concatenate, Array2, Array3, Axis};
-use tokenizers::Tokenizer;
 
 use crate::clip::CLIPStandardTokenizer;
 
@@ -32,10 +31,14 @@ impl TextEmbeddings {
 		let n_tokens = reader.read_u32::<LittleEndian>()?;
 		let text_hidden_size = reader.read_u32::<LittleEndian>()?;
 
+		if n_tokens != 0 {
+			assert_eq!(n_tokens as usize, tokenizer.inner.get_vocab_size(true));
+		}
+
 		let mut tokens = HashMap::with_capacity(n_tokens as _);
 		for i in 0..n_tokens {
 			let mut token = Vec::with_capacity(text_hidden_size as _);
-			for j in 0..text_hidden_size {
+			for _ in 0..text_hidden_size {
 				token.push(reader.read_f32::<LittleEndian>()?);
 			}
 
@@ -62,7 +65,7 @@ impl TextEmbeddings {
 		let token_name = String::from_utf8_lossy(&name_buf).to_string();
 
 		let mut buf = Vec::with_capacity((n_vectors * text_hidden_size) as usize);
-		for i in 0..(n_vectors * text_hidden_size) {
+		for _ in 0..(n_vectors * text_hidden_size) {
 			buf.push(reader.read_f32::<LittleEndian>()?);
 		}
 
@@ -71,9 +74,7 @@ impl TextEmbeddings {
 	}
 
 	pub fn add_token(&mut self, tok: String, embeds: Array2<f32>) -> AddedToken {
-		let n_vectors = embeds.shape()[0];
-
-		self.tokenizer.tokenizer.add_tokens(&[tokenizers::AddedToken {
+		self.tokenizer.inner.add_tokens(&[tokenizers::AddedToken {
 			content: tok.clone(),
 			single_word: true,
 			special: false,
@@ -81,7 +82,7 @@ impl TextEmbeddings {
 			rstrip: false,
 			normalized: false
 		}]);
-		let token_id = self.tokenizer.tokenizer.token_to_id(&tok).unwrap();
+		let token_id = self.tokenizer.inner.token_to_id(&tok).unwrap();
 
 		self.tokens.insert(token_id, embeds);
 
@@ -96,5 +97,13 @@ impl TextEmbeddings {
 		}
 		let embeds = concatenate(Axis(0), &embeds).unwrap();
 		embeds.insert_axis(Axis(0))
+	}
+
+	pub fn len(&self) -> usize {
+		self.tokens.len()
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.tokens.len() == 0
 	}
 }

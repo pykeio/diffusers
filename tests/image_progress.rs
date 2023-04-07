@@ -12,7 +12,7 @@ fn keep_image_size() {
 #[test]
 fn keep_image_size_x4() {
 	let image = Reader::open("assets/diffusers-square.png").unwrap().decode().unwrap();
-	let images = vec![image.clone(), image.clone(), image.clone(), image.clone()];
+	let images = vec![image; 4];
 	let i2i = StableDiffusionImg2ImgOptions::default().with_size(512, 256).with_images(&images);
 	let view = i2i.get_dimensions();
 	assert_eq!(view, (4, 3, 256, 512));

@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use ndarray::Array2;
 use serde::{Deserialize, Serialize};
-use tokenizers::{models::bpe::BPE, EncodeInput, PaddingParams, PaddingStrategy, Tokenizer, TruncationParams};
+use tokenizers::{models::bpe::BPE, EncodeInput, Tokenizer};
 
 #[derive(Serialize, Deserialize)]
 pub struct CLIPStandardTokenizerWrapper {
@@ -33,7 +33,7 @@ pub struct CLIPStandardTokenizerWrapper {
 ///
 /// CLIP is used by many diffusion models, including Stable Diffusion, for prompt tokenization and feature extraction.
 pub struct CLIPStandardTokenizer {
-	pub tokenizer: Tokenizer,
+	pub inner: Tokenizer,
 	model_max_length: usize,
 	bos_token_id: u32,
 	eos_token_id: u32
@@ -44,35 +44,17 @@ unsafe impl Sync for CLIPStandardTokenizer {}
 
 impl CLIPStandardTokenizer {
 	/// Loads a CLIP tokenizer from a file.
-	pub fn new(path: impl Into<PathBuf>, reconfigure: bool, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
+	pub fn new(path: impl Into<PathBuf>, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
 		let path = path.into();
 		let bytes = std::fs::read(path)?;
-		Self::from_bytes(bytes, reconfigure, model_max_length, bos_token_id, eos_token_id)
+		Self::from_bytes(bytes, model_max_length, bos_token_id, eos_token_id)
 	}
 
 	/// Loads a CLIP tokenizer from a byte array.
-	pub fn from_bytes<B: AsRef<[u8]>>(bytes: B, reconfigure: bool, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
-		let mut tokenizer: Tokenizer = serde_json::from_slice(bytes.as_ref())?;
-		// `reconfigure` is disabled in long prompt weighting; LPW has its own padding and truncation strategy that would
-		// conflict with this configuration.
-		if reconfigure {
-			// For some reason, CLIP tokenizers lose their padding and truncation config when converting from the old HF tokenizers
-			// format, so we have to add them back here.
-			tokenizer
-				.with_padding(Some(PaddingParams {
-					strategy: PaddingStrategy::Fixed(model_max_length),
-					// `clip-vit-base-patch32` and (maybe) all Stable Diffusion models use `"pad_token": "<|endoftext|>"`
-					// This info is also lost in translation in HF tokenizers.
-					pad_id: eos_token_id,
-					..Default::default()
-				}))
-				.with_truncation(Some(TruncationParams {
-					max_length: model_max_length,
-					..Default::default()
-				}));
-		}
+	pub fn from_bytes<B: AsRef<[u8]>>(bytes: B, model_max_length: usize, bos_token_id: u32, eos_token_id: u32) -> anyhow::Result<Self> {
+		let tokenizer: Tokenizer = serde_json::from_slice(bytes.as_ref())?;
 		Ok(Self {
-			tokenizer,
+			inner: tokenizer,
 			model_max_length,
 			bos_token_id,
 			eos_token_id
@@ -87,7 +69,7 @@ impl CLIPStandardTokenizer {
 	///   tokenizer, which should be impossible).
 	#[allow(dead_code)]
 	pub fn model(&self) -> &BPE {
-		match self.tokenizer.get_model() {
+		match self.inner.get_model() {
 			tokenizers::ModelWrapper::BPE(ref bpe) => bpe,
 			_ => unreachable!()
 		}
@@ -117,7 +99,7 @@ impl CLIPStandardTokenizer {
 		E: Into<EncodeInput<'s>> + Send
 	{
 		Ok(self
-			.tokenizer
+			.inner
 			.encode_batch(enc, true)
 			.map_err(|e| anyhow::anyhow!("{e:?}"))?
 			.iter()
@@ -133,7 +115,7 @@ impl CLIPStandardTokenizer {
 		let batch_size = enc.len();
 		Ok(Array2::from_shape_vec(
 			(batch_size, self.len()),
-			self.tokenizer
+			self.inner
 				.encode_batch(enc, true)
 				.map_err(|e| anyhow::anyhow!("{e:?}"))?
 				.iter()

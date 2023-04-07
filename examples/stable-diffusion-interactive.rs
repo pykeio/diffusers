@@ -16,8 +16,8 @@ use std::{cell::RefCell, env};
 
 use kdam::{tqdm, BarExt};
 use pyke_diffusers::{
-	ArenaExtendStrategy, CUDADeviceOptions, DPMSolverMultistepScheduler, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment,
-	SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
+	ArenaExtendStrategy, CUDADeviceOptions, DPMSolverMultistepScheduler, DiffusionDevice, DiffusionDeviceControl, OrtEnvironment, SchedulerOptimizedDefaults,
+	StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 use requestty::Question;
 use show_image::{ImageInfo, ImageView, WindowOptions};
@@ -46,8 +46,7 @@ fn main() -> anyhow::Result<()> {
 					})
 				),
 				..Default::default()
-			},
-			lpw: true
+			}
 		}
 	)?;
 

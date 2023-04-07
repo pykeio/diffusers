@@ -185,7 +185,7 @@ fn pad_tokens_and_weights(
 }
 
 pub fn get_unweighted_text_embeddings(
-	embeddings: &TextEmbeddings,
+	#[cfg_attr(test, allow(unused))] embeddings: &TextEmbeddings,
 	text_encoder: &Session,
 	text_input: Array2<i32>,
 	chunk_length: usize,
@@ -202,10 +202,16 @@ pub fn get_unweighted_text_embeddings(
 			text_input_chunk.slice_mut(s![.., 0]).assign(&text_input.slice(s![0, 0]));
 			text_input_chunk.slice_mut(s![.., -1]).assign(&text_input.slice(s![0, -1]));
 
-			let text_input_chunk = text_input_chunk.into_raw_vec();
-			let text_input_chunk = embeddings.embed(text_input_chunk.iter().map(|f| *f as u32).collect());
+			let text_input_chunk = if embeddings.is_empty() {
+				// no external embeds
+				InputTensor::from_array(text_input_chunk.into_dyn())
+			} else {
+				// pre-embed
+				let text_input_chunk = text_input_chunk.into_raw_vec();
+				InputTensor::from_array(embeddings.embed(text_input_chunk.iter().map(|f| *f as u32).collect()).into_dyn())
+			};
 
-			let chunk_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_chunk.into_dyn())])?;
+			let chunk_embeddings = text_encoder.run(vec![text_input_chunk])?;
 			let chunk_embeddings: Array3<f32> = chunk_embeddings[0].try_extract()?.view().to_owned().into_dimensionality().unwrap();
 
 			#[allow(clippy::reversed_empty_ranges)]
@@ -230,10 +236,16 @@ pub fn get_unweighted_text_embeddings(
 		}
 		Ok(x1)
 	} else {
-		let text_input = text_input.into_raw_vec();
-		let text_input = embeddings.embed(text_input.iter().map(|f| *f as u32).collect());
+		let text_input = if embeddings.is_empty() {
+			// no external embeds
+			InputTensor::from_array(text_input.into_dyn())
+		} else {
+			// pre-embed
+			let text_input = text_input.into_raw_vec();
+			InputTensor::from_array(embeddings.embed(text_input.iter().map(|f| *f as u32).collect()).into_dyn())
+		};
 
-		let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input.into_dyn())])?;
+		let text_embeddings = text_encoder.run(vec![text_input])?;
 		Ok(text_embeddings[0].try_extract()?.view().to_owned().into_dimensionality().unwrap())
 	}
 }
