@@ -54,7 +54,9 @@ jobs:
             ubuntu-stable-${{ env.cache-name }}-
             ubuntu-stable-
             ubuntu-
+      - name: Set ORT_DYLIB_PATH
+        run: echo "ORT_DYLIB_PATH=../libonnxruntime.so.1.14.1" >> $GITHUB_ENV
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: ${{ matrix.test.args }}
+          args: --features ort-load-dynamic ${{ matrix.test.args }}
