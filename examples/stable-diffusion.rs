@@ -39,8 +39,8 @@ fn main() -> anyhow::Result<()> {
 	)?;
 
 	let mut imgs = StableDiffusionTxt2ImgOptions::default()
+		.with_prompt("photo of a red fox")
 		.with_steps(20)
-		.with_prompts("photo of a red fox", None)
 		.run(&pipeline, &mut scheduler)?;
 
 	imgs.remove(0).into_rgb8().save("result.png")?;

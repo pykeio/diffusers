@@ -48,12 +48,19 @@ impl StableDiffusionTxt2ImgOptions {
 		self
 	}
 	/// Set the prompt(s) to use when generating the image.
-	pub fn with_prompts<P>(mut self, positive_prompt: P, negative_prompt: Option<P>) -> Self
+	pub fn with_prompt<P>(mut self, positive_prompt: P) -> Self
 	where
 		P: Into<Prompt>
 	{
 		self.positive_prompt = positive_prompt.into();
-		self.negative_prompt = negative_prompt.map(|p| p.into());
+		self
+	}
+	/// Set the negative prompt(s) to use when generating the image.
+	pub fn with_negative_prompt<P>(mut self, negative_prompt: P) -> Self
+	where
+		P: Into<Prompt>
+	{
+		self.negative_prompt = Some(negative_prompt.into());
 		self
 	}
 	/// Set the seed to use when first generating noise.
@@ -131,7 +138,7 @@ impl StableDiffusionTxt2ImgOptions {
 	/// let pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	///
-	/// let mut imgs = StableDiffusionTxt2ImgOptions::default().with_prompts("photo of a red fox", None).run(&pipeline, &mut scheduler)?;
+	/// let mut imgs = StableDiffusionTxt2ImgOptions::default().with_prompt("photo of a red fox").run(&pipeline, &mut scheduler)?;
 	/// imgs.remove(0).into_rgb8().save("result.png")?;
 	/// # Ok(())
 	/// # }

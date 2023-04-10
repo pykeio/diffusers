@@ -67,7 +67,7 @@ let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_defaul
 let pipeline = StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5", StableDiffusionOptions::default())?;
 
 let mut imgs = StableDiffusionTxt2ImgOptions::default()
-    .with_prompts("photo of a red fox", None)
+    .with_prompt("photo of a red fox")
     .run(&pipeline, &mut scheduler)?;
 
 imgs.remove(0).into_rgb8().save("result.png")?;

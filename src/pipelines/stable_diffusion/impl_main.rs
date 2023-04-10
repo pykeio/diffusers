@@ -47,7 +47,7 @@ use crate::{
 /// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 ///
 /// let imgs = StableDiffusionTxt2ImgOptions::default()
-/// 	.with_prompts("photo of a red fox", None)
+/// 	.with_prompt("photo of a red fox")
 /// 	.run(&pipeline, &mut scheduler)?;
 /// # Ok(())
 /// # }
@@ -85,7 +85,8 @@ impl StableDiffusionPipeline {
 	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 	///
 	/// let imgs = StableDiffusionTxt2ImgOptions::default()
-	/// 	.with_prompts("photo of a red fox", Some(StableDiffusionPipeline::SAFETY_CONCEPT.into()))
+	/// 	.with_prompt("photo of a red fox")
+	/// 	.with_negative_prompt(StableDiffusionPipeline::SAFETY_CONCEPT)
 	/// 	.run(&pipeline, &mut scheduler)?;
 	/// # Ok(())
 	/// # }
@@ -434,7 +435,7 @@ impl StableDiffusionPipeline {
 	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 	///
 	/// let mut imgs = StableDiffusionTxt2ImgOptions::default()
-	/// 	.with_prompts("photo of a red fox", None)
+	/// 	.with_prompt("photo of a red fox")
 	/// 	.run(&pipeline, &mut scheduler)?;
 	/// imgs.remove(0).into_rgb8().save("result.png")?;
 	/// # Ok(())

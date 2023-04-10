@@ -59,7 +59,7 @@ fn main() -> anyhow::Result<()> {
 				let pb = RefCell::new(tqdm!(total = 20, desc = "generating"));
 				StableDiffusionTxt2ImgOptions::default()
 					.with_steps(20)
-					.with_prompts(prompt, None)
+					.with_prompt(prompt)
 					.callback_progress(1, move |step, _| {
 						pb.borrow_mut().update_to(step);
 						true

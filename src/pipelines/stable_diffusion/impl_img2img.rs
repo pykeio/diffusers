@@ -52,13 +52,19 @@ impl StableDiffusionImg2ImgOptions {
 		self
 	}
 	/// Set the prompt(s) to use when generating the image.
-	pub fn with_prompts<P, N>(mut self, positive_prompt: P, negative_prompt: Option<N>) -> Self
+	pub fn with_prompt<P, N>(mut self, positive_prompt: P) -> Self
 	where
-		P: Into<Prompt>,
-		N: Into<Prompt>
+		P: Into<Prompt>
 	{
 		self.text_config.positive_prompt = positive_prompt.into();
-		self.text_config.negative_prompt = negative_prompt.map(|p| p.into());
+		self
+	}
+	/// Set the negative prompt(s) to use when generating the image.
+	pub fn with_negative_prompt<P>(mut self, negative_prompt: P) -> Self
+	where
+		P: Into<Prompt>
+	{
+		self.text_config.negative_prompt = Some(negative_prompt.into());
 		self
 	}
 	/// Set with given seed, so that each run generates the same image.

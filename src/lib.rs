@@ -35,7 +35,7 @@
 //! 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 //!
 //! let imgs = StableDiffusionTxt2ImgOptions::default()
-//! 	.with_prompts("photo of a red fox", None)
+//! 	.with_prompt("photo of a red fox")
 //! 	.run(&pipeline, &mut scheduler)?;
 //! # Ok(())
 //! # }
@@ -65,6 +65,7 @@ use ort::ExecutionProvider;
 
 pub use self::pipelines::*;
 pub use self::schedulers::*;
+pub use self::util::prompting;
 
 /// The strategy to use for extending the device memory arena.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,7 +274,7 @@ impl DiffusionDeviceControl {
 }
 
 impl Default for DiffusionDeviceControl {
-	fn default() -> Self {
+	fn default() -> DiffusionDeviceControl {
 		DiffusionDeviceControl::all(DiffusionDevice::CPU)
 	}
 }
