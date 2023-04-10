@@ -17,22 +17,14 @@
 use std::path::PathBuf;
 
 use ndarray::Array2;
-use serde::{Deserialize, Serialize};
 use tokenizers::{models::bpe::BPE, EncodeInput, Tokenizer};
-
-#[derive(Serialize, Deserialize)]
-pub struct CLIPStandardTokenizerWrapper {
-	#[serde(flatten)]
-	pub tokenizer: Tokenizer,
-	pub model_max_length: usize,
-	pub bos_token_id: u32,
-	pub eos_token_id: u32
-}
 
 /// A basic [CLIP](https://arxiv.org/abs/2103.00020) tokenizer.
 ///
 /// CLIP is used by many diffusion models, including Stable Diffusion, for prompt tokenization and feature extraction.
 pub struct CLIPStandardTokenizer {
+	/// The contained [`Tokenizer`] - you probably don't want to use this directly, see
+	/// [`CLIPStandardTokenizer::encode`] instead.
 	pub inner: Tokenizer,
 	model_max_length: usize,
 	bos_token_id: u32,
