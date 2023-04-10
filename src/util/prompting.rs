@@ -6,8 +6,7 @@ use regex::{Captures, Regex};
 /// and whitespace.
 ///
 /// ```
-/// use pyke_diffusers::util::prompting::cleanup_prompt;
-///
+/// # use pyke_diffusers::prompting::cleanup_prompt;
 /// assert_eq!(
 /// 	cleanup_prompt("(masterpiece,, best quality,:1.1)), 1girl,").as_str(),
 /// 	"(masterpiece, best quality:1.1), 1girl"
@@ -46,8 +45,7 @@ pub fn cleanup_prompt<S: AsRef<str>>(prompt: S) -> String {
 /// into [`cleanup_prompt`] for best results.
 ///
 /// ```
-/// use pyke_diffusers::util::prompting::combine_concepts;
-///
+/// # use pyke_diffusers::prompting::combine_concepts;
 /// assert_eq!(
 /// 	combine_concepts("masterpiece, best quality,,", "1girl, solo, blue hair, ").as_str(),
 /// 	"masterpiece, best quality, 1girl, solo, blue hair"
