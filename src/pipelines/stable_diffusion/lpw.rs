@@ -15,6 +15,7 @@
 use std::num::ParseFloatError;
 
 use ndarray::{s, Array2, Array3, Axis, NewAxis};
+use once_cell::sync::Lazy;
 use ort::{
 	tensor::{FromArray, InputTensor},
 	OrtResult, Session
@@ -23,8 +24,8 @@ use regex::Regex;
 
 use crate::{text_embeddings::TextEmbeddings, Prompt};
 
-lazy_static::lazy_static! {
-	static ref RE_ATTENTION: Regex = Regex::new(
+static RE_ATTENTION: Lazy<Regex> = Lazy::new(|| {
+	Regex::new(
 		r"(?x)
 	\\\(|
 	\\\)|
@@ -41,8 +42,8 @@ lazy_static::lazy_static! {
 	:
 	"
 	)
-	.unwrap();
-}
+	.unwrap()
+});
 
 type LpwTokens = Vec<Vec<u32>>;
 type LpwWeights = Vec<Vec<f32>>;

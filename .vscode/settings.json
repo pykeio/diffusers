@@ -38,5 +38,6 @@
 	},
 	"javascript.preferences.quoteStyle": "single",
 	"typescript.preferences.quoteStyle": "single",
-	"python.analysis.typeCheckingMode": "basic"
+	"python.analysis.typeCheckingMode": "basic",
+	"rust-analyzer.showUnlinkedFileNotification": false
 }

@@ -39,8 +39,10 @@ pub enum DPMSolverAlgorithmType {
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[allow(missing_docs)]
 pub enum DPMSolverType {
+	/// Use the explicit midpoint method (RK2)
 	#[default]
 	Midpoint,
+	/// Use Heun's third-order method (RK3)
 	Heun
 }
 

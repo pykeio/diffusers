@@ -32,12 +32,6 @@ use num_traits::ToPrimitive;
 use rand::Rng;
 
 cfg_if::cfg_if! {
-	if #[cfg(feature = "scheduler-lms")] {
-		mod lms_discrete;
-		pub use self::lms_discrete::*;
-	}
-}
-cfg_if::cfg_if! {
 	if #[cfg(feature = "scheduler-euler")] {
 		mod euler_discrete;
 		pub use self::euler_discrete::*;

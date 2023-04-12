@@ -9,8 +9,6 @@ pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretraine
 
 - [Features](#features)
 - [Prerequisites](#prerequisites)
-  * [LMS notes](#lms-notes)
-- [Installation](#installation)
 - [Usage](#usage)
   * [Examples](#examples)
   * [Converting models](#converting-models)
@@ -39,13 +37,11 @@ You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 
 Only generic CPU, CUDA, and TensorRT have prebuilt binaries available (*for now*). Other execution providers will require you to manually build them; see the [ONNX Runtime docs](https://onnxruntime.ai/docs/execution-providers/) for more info. Additionally, you'll need to [make `ort` link to your custom-built binaries](https://github.com/pykeio/ort#execution-providers).
 
-### LMS notes
+## Usage
 > **Note**:
-> **By default, the LMS scheduler is not enabled**, and this section can simply be skipped.
+> The [pyke Discord server](https://discord.gg/BAkXJ6VjCz) occasionally hosts a pyke Diffusers interface for free as part of pyke Labs - try it via the `/imagine` command in [`#🪄｜labs-imagine`](https://discord.com/channels/1029216970027049072/1032658407905316864)
 
-If you plan to enable the `all-schedulers` or `scheduler-lms` feature, you will need to install binaries for the GNU Scientific Library. See the [installation instructions for `rust-GSL`](https://github.com/GuillaumeGomez/rust-GSL#installation) to set up GSL.
-
-## Installation
+Add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
 pyke-diffusers = "0.2"
@@ -55,7 +51,8 @@ pyke-diffusers = { version = "0.2", features = [ "ort-cuda" ] }
 
 The default features enable some commonly used schedulers and pipelines.
 
-## Usage
+To run text-to-image inference with a Stable Diffusion model:
+
 ```rust
 use pyke_diffusers::{
     EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline,

@@ -40,6 +40,13 @@ impl Prompt {
 	pub fn default_batched(batch_size: usize) -> Prompt {
 		Prompt(vec![String::new(); batch_size])
 	}
+
+	/// Converts this prompt into a batched prompt with `batch_size` batches.
+	pub fn batched(mut self, batch_size: usize) -> Prompt {
+		assert!(self.0.len() == 1);
+		self.0 = vec![self.0[0].clone(); batch_size];
+		self
+	}
 }
 
 impl Deref for Prompt {
@@ -89,6 +96,12 @@ impl<'s> From<Cow<'s, str>> for Prompt {
 impl From<String> for Prompt {
 	fn from(value: String) -> Self {
 		Self(vec![value])
+	}
+}
+
+impl<'s> From<&'s String> for Prompt {
+	fn from(value: &'s String) -> Self {
+		Self(vec![value.to_string()])
 	}
 }
 

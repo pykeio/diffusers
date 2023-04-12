@@ -52,7 +52,6 @@
 #![warn(clippy::correctness, clippy::suspicious, clippy::complexity, clippy::perf, clippy::style)]
 #![allow(clippy::tabs_in_doc_comments)]
 
-#[cfg(feature = "tokenizers")]
 #[doc(hidden)]
 pub mod clip;
 pub(crate) mod config;
