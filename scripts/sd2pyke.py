@@ -45,19 +45,18 @@ parser = ArgumentParser(prog='sd2pyke', description='Converts original Stable Di
 parser.add_argument('ckpt_path', type=str, help='Path to the Stable Diffusion checkpoint to convert.')
 parser.add_argument('out_path', type=Path, help='Output path.')
 # !wget https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml
-parser.add_argument('-C', '--config-file', default='v1-inference.yaml', type=str, help='The YAML config file corresponding to the original architecture.')
+parser.add_argument('-C', '--config-file', default=Path(__file__).parent / 'configs' / 'v1-inference.yaml', type=str, help='The YAML config file corresponding to the original architecture.')
 parser.add_argument('--override-unet-sample-size', type=int, help='Override the sample size when converting the UNet.')
 parser.add_argument('--prediction-type', default=None, type=str, help="The prediction type that the model was trained on. Use 'epsilon' for Stable Diffusion v1.x and Stable Diffusion v2 Base. Use 'v-prediction' for Stable Diffusion v2.")
 parser.add_argument('-E', '--ema', action="store_true", help='Extract EMA weights from the checkpoint. EMA weights may yield higher quality images for inference.')
 parser.add_argument('--upcast-attention', action='store_true', help='Whether the attention computation should always be upcasted. This is necessary when running Stable Diffusion 2.1 & derivatives.')
-parser.add_argument('-H', '--fp16', action='store_true', help='Convert all models to float16. Saves disk space, memory, and boosts speed on GPUs with little quality loss.')
-parser.add_argument('--fp16-unet', action='store_true', help='Only convert the UNet to float16. Can be beneficial when only the UNet is placed on GPU.')
+parser.add_argument('--sliced-attention', action='store_true', help='Whether the UNet attention computation should be sliced. This saves VRAM (only during the conversion process), but disables some important operator fusions.')
+parser.add_argument('-H', '--fp16', action='store_true', help='Convert all models to float16. It is recommended to use the optimization script to convert to float16 instead.')
+parser.add_argument('--fp16-unet', action='store_true', help='Only convert the UNet to float16. It is recommended to use the optimization script to convert to float16 instead.')
 parser.add_argument('--no-collate', action='store_true', help='Do not collate UNet weights into a single file.')
 parser.add_argument('--skip-safety-checker', action='store_true', help='Skips converting the safety checker.')
-parser.add_argument('-S', '--simplify-small-models', action='store_true', help='Run onnx-simplifier on the VAE and text encoder for a slight speed boost. Requires `pip install onnxsim` and ~6 GB of free RAM.')
-parser.add_argument('--simplify-unet', action='store_true', help='Run onnx-simplifier on the UNet. Requires `pip install onnxsim` and an unholy amount of free RAM (>24 GB), probably not worth it.')
 parser.add_argument('-O', '--opset', type=int, default=15, help='The ONNX opset version models will be output with.')
-parser.add_argument('-q', '--quantize', type=str, help='Quantize models. See the documentation for more information.')
+#parser.add_argument('-q', '--quantize', type=str, help='Quantize models. See the documentation for more information.')
 args = parser.parse_args()
 
 out_path: Path = args.out_path.resolve()
@@ -72,6 +71,13 @@ model_config: Dict[str, Any] = {
 		'opset': args.opset
 	}
 }
+
+if args.fp16 or args.fp16_unet:
+	cprint(
+		'WARNING: By enabling float16 during conversion, you will be missing out many important optimization opportunities. If you have the ' +
+		'memory to spare, it would be much better to convert in float32 and use the optimization script to convert to float16 afterwards.',
+		color='yellow'
+	)
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 MODEL_DTYPE = torch.float16 if args.fp16 else torch.float32
@@ -237,11 +243,19 @@ def convert_text_encoder(hf_root: Path) -> Tuple[Path, Path, int, int]:
 def convert_unet(hf_path: Path, num_tokens: int, text_hidden_size: int) -> Tuple[Path, int]:
 	unet = load_safetensors(UNet2DConditionModelIOWrapper, hf_path / 'unet', device=DEVICE, dtype=UNET_DTYPE)
 
-	#if isinstance(unet.config.attention_head_dim, int): # type: ignore
-	#	slice_size = unet.config.attention_head_dim // 2 # type: ignore
-	#else:
-	#	slice_size = min(unet.config.attention_head_dim) # type: ignore
-	#unet.set_attention_slice(slice_size)
+	if args.sliced_attention:
+		cprint(
+			'WARNING: By enabling attention slicing, you are missing out on important optimization opportunities, specifically attention fusion. ' +
+			'Attention fusion can improve generation speed by almost 2x and significantly reduce memory during inference. If you do not have the ' +
+			'VRAM, having an unoptimized model is better than no model at all, but if you do have the VRAM to spare, you should definitely consider ' +
+			'disabling attention slicing!',
+			color='yellow'
+		)
+		if isinstance(unet.config.attention_head_dim, int): # type: ignore
+			slice_size = unet.config.attention_head_dim // 2 # type: ignore
+		else:
+			slice_size = min(unet.config.attention_head_dim) # type: ignore
+		unet.set_attention_slice(slice_size)
 
 	unet_model_size = 0
 	for param in unet.parameters():
@@ -357,8 +371,8 @@ with torch.no_grad():
 	with tempdir() as tmp:
 		print()
 		print()
-		print('You can ignore all of the above messages.')
-		print('The model will first be converted to a Hugging Face model due to memory constraints.')
+		cprint('You can ignore all of the above messages.', color='magenta', attrs=['bold'])
+		cprint('The model will first be converted to a Hugging Face model due to memory constraints.', color='magenta')
 		with yaspin(text='Saving Hugging Face model', spinner=SPINNER):
 			pipe.save_pretrained(tmp, safe_serialization=True)
 
@@ -422,4 +436,4 @@ with torch.no_grad():
 		with open(out_path / 'pyke-diffusers.toml', 'wb') as f:
 			toml.dump(model_config, f)
 
-cprint(f'✨ Your model is ready! {str(out_path)}')
+cprint(f'✨ Your model is ready! {str(out_path)}', color='light_cyan', attrs=['bold'])

@@ -141,7 +141,6 @@ class FusionAttentionUnet(Fusion):
         # Sometimes weights are stored in fp16
         if q_weight.data_type == 10:
             logger.debug("weights are in fp16. Please run fp16 conversion after optimization")
-            print('fp16 weights')
             return None
 
         qw = NumpyHelper.to_array(q_weight)
@@ -152,8 +151,6 @@ class FusionAttentionUnet(Fusion):
         # assert q and k have same shape as expected
         if is_self_attention:
             if qw.shape != kw.shape or qw.shape != vw.shape:
-                print('self attention: shape mismatches')
-                print('')
                 return None
 
             qw_in_size = qw.shape[0]
@@ -235,7 +232,6 @@ class FusionAttentionUnet(Fusion):
             attention_node_name = self.model.create_node_name("MultiHeadAttention")
             if self.enable_packed_kv:
                 if kw.shape != vw.shape:
-                    print('cross attention: packed kv is enabled, kw.shape != vw.shape')
                     return None
 
                 kw_in_size = kw.shape[0]
@@ -349,7 +345,6 @@ class FusionAttentionUnet(Fusion):
         return attention_node
 
     def fuse(self, normalize_node, input_name_to_nodes, output_name_to_node):
-        print('=======================================')
         node_before_layernorm = self.model.match_parent(normalize_node, "Add", 0)
 
         # In SD 1.5, for self attention, LayerNorm has parent Reshape
@@ -357,7 +352,6 @@ class FusionAttentionUnet(Fusion):
             node_before_layernorm = self.model.match_parent(normalize_node, "Reshape", 0)
 
         if node_before_layernorm is None:
-            print("node_before_layernorm is None")
             return
 
         root_input = node_before_layernorm.output[0]
@@ -367,10 +361,8 @@ class FusionAttentionUnet(Fusion):
         for node in children_nodes:
             if node.op_type == "Add":  # or node.op_type == "SkipLayerNormalization":
                 skip_add = node
-                print("found skip_add node")
                 break
         if skip_add is None:
-            print("skip_add is None")
             return
 
         another_input = 1 if skip_add.input[0] == root_input else 0
@@ -381,12 +373,6 @@ class FusionAttentionUnet(Fusion):
         )
 
         if qkv_nodes is None:
-            print("qkv_nodes is None, another_input =", another_input)
-            print(self.model.match_parent_path(
-                skip_add,
-                ["Add", "MatMul", "Reshape", "Transpose", "Reshape", "MatMul"],
-                [1, None, None, 0, 0, 0],
-            ))
             return
 
         (_, _, reshape_qkv, transpose_qkv, _, matmul_qkv) = qkv_nodes
@@ -394,7 +380,6 @@ class FusionAttentionUnet(Fusion):
         # No bias. For cross-attention, the input of the MatMul is encoder_hidden_states graph input.
         v_nodes = self.model.match_parent_path(matmul_qkv, ["Reshape", "Transpose", "Reshape", "MatMul"], [1, 0, 0, 0])
         if v_nodes is None:
-            print('v_nodes is None')
             logger.debug("fuse_attention: failed to match v path")
             return
         (_, _, _, matmul_v) = v_nodes
@@ -407,13 +392,11 @@ class FusionAttentionUnet(Fusion):
             if qk_nodes is not None:
                 (_softmax_qk, _add_zero, _mul_qk, matmul_qk) = qk_nodes
             else:
-                print('failed to match qk_nodes')
                 logger.debug("fuse_attention: failed to match qk path")
                 return
 
         q_nodes = self.model.match_parent_path(matmul_qk, ["Reshape", "Transpose", "Reshape", "MatMul"], [0, 0, 0, 0])
         if q_nodes is None:
-            print('q_nodes is None')
             logger.debug("fuse_attention: failed to match q path")
             return
         (_, _transpose_q, reshape_q, matmul_q) = q_nodes
@@ -422,7 +405,6 @@ class FusionAttentionUnet(Fusion):
             matmul_qk, ["Transpose", "Reshape", "Transpose", "Reshape", "MatMul"], [1, 0, 0, 0, 0]
         )
         if k_nodes is None:
-            print('k_nodes is None')
             logger.debug("fuse_attention: failed to match k path")
             return
 
@@ -432,7 +414,6 @@ class FusionAttentionUnet(Fusion):
 
         q_num_heads, q_hidden_size = self.get_num_heads_and_hidden_size(reshape_q, normalize_node)
         if q_num_heads <= 0:
-            print('couldnt detect num_heads')
             logger.debug("fuse_attention: failed to detect num_heads")
             return
 
@@ -447,7 +428,6 @@ class FusionAttentionUnet(Fusion):
             output=attention_last_node.output[0],
         )
         if new_node is None:
-            print('new_node is None')
             return
 
         self.nodes_to_add.append(new_node)
