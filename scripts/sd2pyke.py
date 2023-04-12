@@ -31,6 +31,7 @@ import onnx
 from termcolor import cprint
 import tomli_w as toml
 import torch
+from torchvision.datasets.utils import download_url
 from transformers import CLIPTextModel, CLIPTokenizerFast
 from yaspin import yaspin
 
@@ -41,7 +42,7 @@ from _utils import SPINNER, collect_garbage, mkdirp
 warnings.filterwarnings('ignore')
 
 parser = ArgumentParser(prog='sd2pyke', description='Converts original Stable Diffusion checkpoints to pyke Diffusers models')
-parser.add_argument('ckpt_path', type=Path, help='Path to the Stable Diffusion checkpoint to convert.')
+parser.add_argument('ckpt_path', type=str, help='Path to the Stable Diffusion checkpoint to convert.')
 parser.add_argument('out_path', type=Path, help='Output path.')
 # !wget https://raw.githubusercontent.com/CompVis/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml
 parser.add_argument('-C', '--config-file', default='v1-inference.yaml', type=str, help='The YAML config file corresponding to the original architecture.')
@@ -79,21 +80,28 @@ IO_DTYPE = torch.float32
 
 @contextlib.contextmanager
 def cd(newdir, cleanup=lambda: None):
-    prevdir = os.getcwd()
-    os.chdir(os.path.expanduser(newdir))
-    try:
-        yield
-    finally:
-        os.chdir(prevdir)
-        cleanup()
+	prevdir = os.getcwd()
+	os.chdir(os.path.expanduser(newdir))
+	try:
+		yield
+	finally:
+		os.chdir(prevdir)
+		cleanup()
 
 @contextlib.contextmanager
 def tempdir():
-    dirpath = tempfile.mkdtemp()
-    def cleanup():
-        shutil.rmtree(dirpath)
-    with cd(dirpath, cleanup):
-        yield dirpath
+	dirpath = tempfile.mkdtemp()
+	def cleanup():
+		shutil.rmtree(dirpath)
+	with cd(dirpath, cleanup):
+		yield dirpath
+
+ckpt_uri: str = args.ckpt_path
+if ckpt_uri.startswith('http'):
+	filename = os.path.basename(ckpt_uri)
+	download_url(ckpt_uri, tempfile.gettempdir(), filename=filename)
+	ckpt_uri = tempfile.gettempdir() + '/' + filename
+ckpt_path = Path(ckpt_uri)
 
 class UNet2DConditionModelIOWrapper(UNet2DConditionModel):
 	def forward(
@@ -111,17 +119,17 @@ class UNet2DConditionModelIOWrapper(UNet2DConditionModel):
 
 # Copied from transformers.models.bart.modeling_bart._expand_mask
 def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
-    """
-    Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
-    """
-    bsz, src_len = mask.size()
-    tgt_len = tgt_len if tgt_len is not None else src_len
+	"""
+	Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
+	"""
+	bsz, src_len = mask.size()
+	tgt_len = tgt_len if tgt_len is not None else src_len
 
-    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+	expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
 
-    inverted_mask = 1.0 - expanded_mask
+	inverted_mask = 1.0 - expanded_mask
 
-    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+	return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
 
 class CLIPTextModelIOWrapper(CLIPTextModel):
 	def forward(self, input_ids: torch.IntTensor) -> Tuple:
@@ -334,8 +342,8 @@ def convert_vae(hf_path: Path, unet_sample_size: int) -> Tuple[Path, Path, int, 
 
 with torch.no_grad():
 	pipe = load_pipeline_from_original_stable_diffusion_ckpt(
-		checkpoint_path=args.ckpt_path,
-		from_safetensors=args.ckpt_path.suffix == '.safetensors',
+		checkpoint_path=str(ckpt_path),
+		from_safetensors=ckpt_path.suffix == '.safetensors',
 		image_size=((args.override_unet_sample_size or 0) * 8) or 512,
 		prediction_type=args.prediction_type,
 		extract_ema=args.ema,
