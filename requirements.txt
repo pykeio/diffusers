@@ -12,5 +12,6 @@ scipy~=1.10
 spacy~=3.5
 termcolor>=2,<3
 tomli-w
+torch>1,<2 # torch.onnx.export is a bit broken with torch 2
 transformers>=4.21.0,<5
 yaspin~=2.3
