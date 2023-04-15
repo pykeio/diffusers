@@ -413,43 +413,4 @@ impl StableDiffusionPipeline {
 
 		Ok(images)
 	}
-
-	/// > **Note**: this is deprecated, use `run()` in [`StableDiffusionTxt2ImgOptions`] instead.
-	///
-	/// Generates images from given text prompt(s). Returns a vector of [`image::DynamicImage`]s, using float32 buffers.
-	/// In most cases, you'll want to convert the images into RGB8 via `img.into_rgb8().`
-	///
-	/// `scheduler` must be a Stable Diffusion-compatible scheduler.
-	///
-	/// See [`StableDiffusionTxt2ImgOptions`] for additional configuration.
-	///
-	/// # Examples
-	///
-	/// Simple text-to-image:
-	/// ```
-	/// # fn main() -> anyhow::Result<()> {
-	/// # use pyke_diffusers::{StableDiffusionPipeline, EulerDiscreteScheduler, StableDiffusionOptions, StableDiffusionTxt2ImgOptions, OrtEnvironment};
-	/// # let environment = OrtEnvironment::default().into_arc();
-	/// # let mut scheduler = EulerDiscreteScheduler::default();
-	/// let pipeline =
-	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
-	///
-	/// let mut imgs = StableDiffusionTxt2ImgOptions::default()
-	/// 	.with_prompt("photo of a red fox")
-	/// 	.run(&pipeline, &mut scheduler)?;
-	/// imgs.remove(0).into_rgb8().save("result.png")?;
-	/// # Ok(())
-	/// # }
-	/// ```
-	#[deprecated(note = "use builder pattern with `StableDiffusionTxt2ImgOptions::run` instead")]
-	pub fn txt2img<S: DiffusionScheduler>(
-		&self,
-		prompt: impl Into<Prompt>,
-		scheduler: &mut S,
-		options: StableDiffusionTxt2ImgOptions
-	) -> anyhow::Result<Vec<DynamicImage>> {
-		let mut new_options = options;
-		new_options.positive_prompt = prompt.into();
-		new_options.run(self, scheduler)
-	}
 }

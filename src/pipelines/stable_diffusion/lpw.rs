@@ -69,7 +69,7 @@ fn parse_prompt_attention(text: impl AsRef<str>) -> Result<Vec<(String, f32)>, P
 		} else if text == "[" {
 			square_brackets.push(rlen);
 		} else if weight.is_some() && !round_brackets.is_empty() {
-			let multiplier = weight.unwrap().parse::<f32>()?;
+			let multiplier = weight.unwrap().parse::<f32>()?.max(0.0);
 			for i in res.iter_mut().take(rlen).skip(round_brackets.pop().unwrap()) {
 				i.1 *= multiplier;
 			}

@@ -25,8 +25,9 @@ mod impl_txt2img;
 pub(crate) mod lpw;
 pub(crate) mod text_embeddings;
 
-pub use self::impl_main::*;
-// pub use self::impl_memory_optimized::*;
+pub use self::impl_img2img::{ImagePreprocessing, StableDiffusionImg2ImgOptions};
+pub use self::impl_main::StableDiffusionPipeline;
+pub use self::impl_txt2img::StableDiffusionTxt2ImgOptions;
 use crate::{DiffusionDeviceControl, Prompt};
 
 /// Options for the Stable Diffusion pipeline. This includes options like device control and long prompt weighting.
@@ -88,53 +89,4 @@ impl Debug for StableDiffusionCallback {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str("<StableDiffusionCallback>")
 	}
-}
-
-/// Options for the Stable Diffusion text-to-image pipeline.
-#[derive(Debug)]
-pub struct StableDiffusionTxt2ImgOptions {
-	/// The height of the image. **Must be divisible by 8.**
-	/// Note that higher resolution images require more VRAM.
-	pub height: u32,
-	/// The width of the image. **Must be divisible by 8.**
-	/// Note that higher resolution images require more VRAM.
-	pub width: u32,
-	/// The 'guidance scale' for classifier-free guidance. A lower guidance scale gives the model more freedom, but the
-	/// output may not match the prompt. A higher guidance scale mean the model will match the prompt(s) more strictly,
-	/// but may introduce artifacts; `7.5` is a good balance.
-	pub guidance_scale: f32,
-	/// The number of steps to take to generate the image. More steps typically yields higher quality images.
-	pub steps: usize,
-	/// An optional seed to use when first generating noise. The same seed with the same scheduler, prompt, & guidance
-	/// scale will produce the same image. If `None`, a random seed will be generated.
-	///
-	/// Seeds are not interchangable between schedulers, and **a seed from Hugging Face diffusers or AUTOMATIC1111's
-	/// web UI will *not* generate the same image** in pyke Diffusers.
-	pub seed: Option<u64>,
-	/// Prompt(s) describing what the model should generate in classifier-free guidance.
-	pub positive_prompt: Prompt,
-	/// Optional prompt(s) describing what the model should **not** generate in classifier-free guidance. Typically used
-	/// to produce safe outputs, e.g. `negative_prompt: Some("gore, violence, blood".into())`. Must have the same
-	/// number of prompts as the 'positive' prompt input.
-	pub negative_prompt: Option<Prompt>,
-	/// An optional callback to call every `n` steps in the generation process. Can be used to log or display progress,
-	/// see [`StableDiffusionCallback`] for more details.
-	pub callback: Option<StableDiffusionCallback>
-}
-
-/// Options for the Stable Diffusion image-to-image pipeline.
-#[derive(Debug)]
-pub struct StableDiffusionImg2ImgOptions {
-	reference_image: Array4<f32>,
-	preprocessing: ImagePreprocessing,
-	text_config: StableDiffusionTxt2ImgOptions
-}
-
-/// The image preprocessing method to on images that mismatch size.
-#[derive(Debug)]
-pub enum ImagePreprocessing {
-	/// The image is resized to the target size.
-	Resize,
-	/// Crop extra pixels, fill the rest with black.
-	CropFill
 }
