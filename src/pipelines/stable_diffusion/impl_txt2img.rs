@@ -12,33 +12,35 @@ use crate::{DiffusionScheduler, Prompt, StableDiffusionCallback, StableDiffusion
 /// Options for the Stable Diffusion text-to-image pipeline.
 #[derive(Debug)]
 pub struct StableDiffusionTxt2ImgOptions {
-	pub(crate) height: u32,
+	/// The height of the image. **Must be divisible by 8.**
+	/// Note that higher resolution images require more VRAM.
+	pub height: u32,
 	/// The width of the image. **Must be divisible by 8.**
 	/// Note that higher resolution images require more VRAM.
-	pub(crate) width: u32,
+	pub width: u32,
 	/// The 'guidance scale' for classifier-free guidance. A lower guidance scale gives the model more freedom, but the
 	/// output may not match the prompt. A higher guidance scale mean the model will match the prompt(s) more strictly,
 	/// but may introduce artifacts; `7.5` is a good balance.
-	pub(crate) guidance_scale: f32,
+	pub guidance_scale: f32,
 	/// The number of steps to take to generate the image. More steps typically yields higher quality images.
-	pub(crate) steps: usize,
+	pub steps: usize,
 	/// An optional seed to use when first generating noise. The same seed with the same scheduler, prompt, & guidance
 	/// scale will produce the same image. If `None`, a random seed will be generated.
 	///
 	/// Seeds are not interchangable between schedulers, and **a seed from Hugging Face diffusers or AUTOMATIC1111's
 	/// web UI will *not* generate the same image** in pyke Diffusers.
-	pub(crate) seed: Option<u64>,
+	pub seed: Option<u64>,
 	/// ETA noise seed delta (ENSD). The scheduler will be given an RNG seeded with `seed + ensd`.
-	pub(crate) ensd: u64,
+	pub ensd: u64,
 	/// Prompt(s) describing what the model should generate in classifier-free guidance.
-	pub(crate) positive_prompt: Prompt,
+	pub positive_prompt: Prompt,
 	/// Optional prompt(s) describing what the model should **not** generate in classifier-free guidance. Typically used
 	/// to produce safe outputs, e.g. `negative_prompt: Some("gore, violence, blood".into())`. Must have the same
 	/// number of prompts as the 'positive' prompt input.
-	pub(crate) negative_prompt: Option<Prompt>,
+	pub negative_prompt: Option<Prompt>,
 	/// An optional callback to call every `n` steps in the generation process. Can be used to log or display progress,
 	/// see [`StableDiffusionCallback`] for more details.
-	pub(crate) callback: Option<StableDiffusionCallback>
+	pub callback: Option<StableDiffusionCallback>
 }
 
 impl Default for StableDiffusionTxt2ImgOptions {

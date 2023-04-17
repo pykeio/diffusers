@@ -2,7 +2,7 @@ use image::imageops::FilterType;
 use image::{DynamicImage, Rgb32FImage};
 use ndarray::{Array4, Ix};
 
-use crate::{pipelines::stable_diffusion::StableDiffusionTxt2ImgOptions, ImagePreprocessing, Prompt, StableDiffusionCallback};
+use crate::{pipelines::stable_diffusion::StableDiffusionTxt2ImgOptions, Prompt, StableDiffusionCallback};
 
 /// The image preprocessing method to on images that mismatch size.
 #[derive(Debug)]
@@ -16,10 +16,10 @@ pub enum ImagePreprocessing {
 /// Options for the Stable Diffusion image-to-image pipeline.
 #[derive(Debug)]
 pub struct StableDiffusionImg2ImgOptions {
-	pub(crate) reference_image: Array4<f32>,
-	pub(crate) noise_strength: f32,
-	pub(crate) preprocessing: ImagePreprocessing,
-	pub(crate) text_config: StableDiffusionTxt2ImgOptions
+	pub reference_image: Array4<f32>,
+	pub noise_strength: f32,
+	pub preprocessing: ImagePreprocessing,
+	pub text_config: StableDiffusionTxt2ImgOptions
 }
 
 impl Default for StableDiffusionImg2ImgOptions {
