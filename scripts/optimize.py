@@ -60,6 +60,7 @@ parser.add_argument(
 		'gpu-nv', # Optimize for GPU inference on NVIDIA GPUs with Tensor Cores.
 		'mixed', # Optimize for 'mixed' GPU(UNet)/CPU(Rest) inference.
 		'mixed-nv', # Optimize for 'mixed' GPU(UNet)/CPU(Rest) inference for NVIDIA GPUs with Tensor Cores.
+		'mixed+vae-nv', # Optimize for 'mixed' GPU(UNet + VAE)/CPU(Rest) inference for NVIDIA GPUs with Tensor Cores.
 		'mixed-nv-nightly', # Optimize for 'mixed' GPU(UNet)/CPU(Rest) inference for NVIDIA GPUs with Tensor Cores using a nightly version of ORT.
 	],
 	help='Optimization preset. See the docs for specific information.'
@@ -114,6 +115,12 @@ PRESETS = {
 		'vae': ['skip_layer_norm', 'attention', 'multihead_attention', 'approximate_gelu', 'packed_kv'],
 		'safety-checker': ['skip_layer_norm', 'attention', 'multihead_attention', 'approximate_gelu', 'packed_kv'],
 	},
+	'mixed+vae-nv': {
+		'text-encoder': ['skip_layer_norm', 'attention', 'multihead_attention', 'packed_kv'],
+		'unet': ['fp16', 'group_norm', 'skip_layer_norm', 'attention', 'multihead_attention', 'nhwc', 'bias_split_gelu', 'packed_kv'],
+		'vae': ['fp16', 'group_norm', 'skip_layer_norm', 'attention', 'multihead_attention', 'nhwc', 'bias_split_gelu', 'packed_kv'],
+		'safety-checker': ['skip_layer_norm', 'attention', 'multihead_attention', 'approximate_gelu', 'packed_kv'],
+	},
 	'mixed-nv-nightly': {
 		'text-encoder': ['skip_layer_norm', 'attention', 'multihead_attention', 'approximate_gelu', 'packed_kv'],
 		'unet': ['fp16', 'group_norm', 'skip_layer_norm', 'attention', 'multihead_attention', 'nhwc', 'bias_split_gelu', 'bias_add', 'packed_qkv', 'packed_kv'],
@@ -160,8 +167,8 @@ def get_fusion_options(model_type: str, onnx_model_type: str) -> FusionOptions:
 	fusion_options.enable_bias_gelu = True
 	fusion_options.enable_gelu_approximation = 'approximate_gelu' in config
 	fusion_options.enable_qordered_matmul = True
-	fusion_options.enable_shape_inference = model_type != 'unet'
-	fusion_options.enable_gemm_fast_gelu = True
+	fusion_options.enable_shape_inference = True
+	fusion_options.enable_gemm_fast_gelu = False
 	fusion_options.enable_nhwc_conv = 'nhwc' in config
 	fusion_options.enable_group_norm = 'group_norm' in config
 	fusion_options.enable_bias_splitgelu = 'bias_split_gelu' in config
@@ -232,7 +239,7 @@ def fuse_text_encoder():
 	del model
 
 fuse_vae()
-fuse_text_encoder()
+fuse_text_encoder() # TODO: attention is not being fused
 fuse_unet()
 
 cprint('🔵 All models successfully optimized', color='blue')
