@@ -56,6 +56,7 @@ parser.add_argument('--fp16-unet', action='store_true', help='Only convert the U
 parser.add_argument('--no-collate', action='store_true', help='Do not collate UNet weights into a single file.')
 parser.add_argument('--skip-safety-checker', action='store_true', help='Skips converting the safety checker.')
 parser.add_argument('-O', '--opset', type=int, default=15, help='The ONNX opset version models will be output with.')
+parser.add_argument('--clip-skip', type=int, default=0, help='Which layer to use for final text embeddings in the text encoder. Set to 0 = final layer (default), 1 = penultimate layer (aka A111 CLIP skip = 2). Penultimate might be better for anime models.')
 #parser.add_argument('-q', '--quantize', type=str, help='Quantize models. See the documentation for more information.')
 args = parser.parse_args()
 
@@ -160,10 +161,16 @@ class CLIPPreembeddedTextModelIOWrapper(CLIPTextModel):
 			inputs_embeds=hidden_states,
 			attention_mask=attention_mask,
 			causal_attention_mask=causal_attention_mask,
+			output_hidden_states=True,
 			return_dict=True
 		)
 
-		last_hidden_state = encoder_outputs[0]
+		if args.clip_skip == 0:
+			last_hidden_state = encoder_outputs.last_hidden_state
+		elif args.clip_skip == 1:
+			last_hidden_state = encoder_outputs.hidden_states[-2]
+		else:
+			last_hidden_state = encoder_outputs.hidden_states[-(args.clip_skip + 1)]
 		last_hidden_state = self.text_model.final_layer_norm(last_hidden_state)
 
 		return last_hidden_state.to(dtype=IO_DTYPE)
