@@ -3,6 +3,11 @@
     <hr />
 </div>
 
+# Please see the [v2](https://github.com/pykeio/diffusers/tree/v2) branch and related PR: [#28](https://github.com/pykeio/diffusers/pull/28)
+Diffusers 1.0 has enhanced documentation, graph fusion optimizations, CLIP skip, and textual inversion.
+
+<hr />
+
 pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretrained diffusion model inference to generate images using [ONNX Runtime](https://onnxruntime.ai/) as a backend for accelerated generation on both CPUs & GPUs.
 
 - [Features](#features)
