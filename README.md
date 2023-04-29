@@ -1,11 +1,11 @@
 <div align=center>
     <img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/diffusers.webp" width="100%" alt="pyke Diffusers">
     <a href="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/gallery0.webp" target="_blank"><img src="https://parcel.pyke.io/v2/cdn/assetdelivery/diffusers/doc/gallery0.webp" width="100%" alt="Gallery of generated images"></a>
-    <a href="https://github.com/pykeio/diffusers/actions/workflows/test.yml"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/pykeio/diffusers/test.yml?branch=v2&style=for-the-badge"></a> <a href="https://crates.io/crates/pyke-diffusers" target="_blank"><img alt="Crates.io" src="https://img.shields.io/crates/d/ort?style=for-the-badge"></a> <a href="https://discord.gg/BAkXJ6VjCz"><img alt="Discord" src="https://img.shields.io/discord/1029216970027049072?style=for-the-badge&logo=discord&logoColor=white"></a>
+    <a href="https://github.com/pykeio/diffusers/actions/workflows/test.yml"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/pykeio/diffusers/test.yml?branch=v2&style=for-the-badge"></a> <a href="https://crates.io/crates/pyke-diffusers" target="_blank"><img alt="Crates.io" src="https://img.shields.io/crates/d/pyke-diffusers?style=for-the-badge"></a> <a href="https://discord.gg/BAkXJ6VjCz"><img alt="Discord" src="https://img.shields.io/discord/1029216970027049072?style=for-the-badge&logo=discord&logoColor=white"></a>
     <hr />
 </div>
 
-pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretrained diffusion model inference to generate images using [ONNX Runtime](https://onnxruntime.ai/) as a backend for accelerated generation on both CPUs & GPUs.
+pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretrained diffusion model inference to generate images using [ONNX Runtime](https://onnxruntime.ai/) for acceleration on both CPUs & GPUs.
 
 - [Features](#features)
 - [Prerequisites](#prerequisites)
@@ -19,10 +19,18 @@ pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretraine
 - [Roadmap](#roadmap)
 
 ## Features
-- 🔮 **Text-to-image** for Stable Diffusion v1 & v2
-- ⚡ **Optimized** for both CPU and GPU inference
-- 🪶 **Memory-efficient** pipelines to run with **<2GB of RAM**!
-- 🔃 **Textual inversion** in positive & negative prompts
+- 🔮 **Text-to-image** for Stable Diffusion v1 & v2: pyke Diffusers currently supports text-to-image generation with Stable Diffusion v1, v2, & v2.1 based models.
+- ⚡ **Optimized** for both CPU and GPU inference - 45% faster than PyTorch, and uses 20% less memory
+
+| 🔮 | **Memory usage** | **Generation time** |
+|:-:|:-:|:-:|
+| 🤗 | 4.1 GB | 68.0 s |
+| <img src="https://pyke.io/assets/pyke-banner.png" height=14> | **3.3 GB** | **37.4 s** |
+
+<sup>Ryzen 5 5600X + NVIDIA GTX 1660 w/ CUDA</sup>
+
+- 🪶 **Memory-efficient** pipeline to run with **<2GB of RAM** on mobile devices
+- 🔃 **Textual inversion** in both positive & negative prompts
 - ✒️ **Prompt weighting**, e.g. `a (((house:1.3)) [on] a (hill:0.5), sun, (((sky))).`
 - 📋 **Implements many schedulers**: DPM/DPM++, DDIM, DDPM, Euler/Euler a, LMS
 
@@ -35,7 +43,7 @@ You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 - If using ROCm: **ROCm v5.2** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html)</sup>
 - If using DirectML: **DirectX 12 compatible GPU**, **Windows 10 v1903+** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)</sup>
 
-Only generic CPU, CUDA, and TensorRT have prebuilt binaries available (*for now*). Other execution providers will require you to manually build them; see the [ONNX Runtime docs](https://onnxruntime.ai/docs/execution-providers/) for more info. Additionally, you'll need to [make `ort` link to your custom-built binaries](https://github.com/pykeio/ort#execution-providers).
+Only generic CPU, CUDA, and TensorRT have prebuilt binaries available (*for now*). Other execution providers will require you to manually build them; see the [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/) & [`ort` docs](https://github.com/pykeio/ort#execution-providers) for more info.
 
 ## Usage
 > **Note**:
@@ -131,7 +139,7 @@ A combination of 256x256 image generation via `StableDiffusionMemoryOptimizedPip
 - [ ] Implement img2img, inpainting, and upscaling ([#2](https://github.com/pykeio/diffusers/issues/2))
 - [x] Textual inversion
 - [x] VAE approximation
-- [ ] CLIP layer skip
+- [x] CLIP layer skip
 - [ ] Rewrite scheduler system ([#16](https://github.com/pykeio/diffusers/issues/16))
 - [x] Acceleration for M1 Macs ([#14](https://github.com/pykeio/diffusers/issues/14))
 - [ ] Web interface
