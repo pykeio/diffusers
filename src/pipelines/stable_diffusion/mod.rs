@@ -28,7 +28,7 @@ pub(crate) mod text_embeddings;
 pub use self::impl_img2img::{ImagePreprocessing, StableDiffusionImg2ImgOptions};
 pub use self::impl_main::StableDiffusionPipeline;
 pub use self::impl_txt2img::StableDiffusionTxt2ImgOptions;
-use crate::{DiffusionDeviceControl, Prompt};
+use crate::DiffusionDeviceControl;
 
 /// Options for the Stable Diffusion pipeline. This includes options like device control and long prompt weighting.
 #[derive(Default, Debug, Clone)]

@@ -12,23 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::Path;
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+	sync::Arc
+};
 
 use image::{DynamicImage, Rgb32FImage};
 use ndarray::{concatenate, Array2, Array4, ArrayD, ArrayView4, Axis, IxDyn};
 use ndarray_einsum_beta::einsum;
-use ort::{
-	tensor::{FromArray, InputTensor, OrtOwnedTensor},
-	Environment, OrtResult, Session, SessionBuilder
-};
+use ort::{tensor::OrtOwnedTensor, Environment, OrtResult, Session, SessionBuilder};
 
-use super::{StableDiffusionOptions, StableDiffusionTxt2ImgOptions};
-use crate::text_embeddings::TextEmbeddings;
 use crate::{
 	clip::CLIPStandardTokenizer,
 	config::{DiffusionFramework, DiffusionPipeline, StableDiffusionConfig, TokenizerConfig},
-	schedulers::DiffusionScheduler,
+	pipelines::StableDiffusionOptions,
+	text_embeddings::TextEmbeddings,
 	Prompt
 };
 
@@ -402,7 +401,7 @@ impl StableDiffusionPipeline {
 		let mut images = Vec::new();
 		for latent_chunk in latents.axis_iter(Axis(0)) {
 			let latent_chunk = latent_chunk.into_dyn().insert_axis(Axis(0));
-			let image = self.vae_decoder.run(vec![InputTensor::from_array(latent_chunk.to_owned())])?;
+			let image = self.vae_decoder.run(&[latent_chunk.to_owned().into()])?;
 			let image: OrtOwnedTensor<'_, f32, IxDyn> = image[0].try_extract()?;
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
 			let f_image = f_image.permuted_axes([0, 2, 3, 1]) / 2.0 + 0.5;

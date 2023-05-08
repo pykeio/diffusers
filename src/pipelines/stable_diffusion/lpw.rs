@@ -16,10 +16,7 @@ use std::num::ParseFloatError;
 
 use ndarray::{s, Array2, Array3, Axis, NewAxis};
 use once_cell::sync::Lazy;
-use ort::{
-	tensor::{FromArray, InputTensor},
-	OrtResult, Session
-};
+use ort::{OrtResult, Session};
 use regex::Regex;
 
 use crate::{text_embeddings::TextEmbeddings, Prompt};
@@ -205,13 +202,13 @@ pub fn get_unweighted_text_embeddings(
 
 			let text_input_chunk = if embeddings.is_empty() {
 				// no external embeds
-				InputTensor::from_array(text_input_chunk.into_dyn())
+				text_input_chunk.into_dyn().into()
 			} else {
 				// pre-embed
-				InputTensor::from_array(embeddings.embed(text_input_chunk).into_dyn())
+				embeddings.embed(text_input_chunk).into_dyn().into()
 			};
 
-			let chunk_embeddings = text_encoder.run(vec![text_input_chunk])?;
+			let chunk_embeddings = text_encoder.run(&[text_input_chunk])?;
 			let chunk_embeddings: Array3<f32> = chunk_embeddings[0].try_extract()?.view().to_owned().into_dimensionality().unwrap();
 
 			#[allow(clippy::reversed_empty_ranges)]
@@ -238,13 +235,13 @@ pub fn get_unweighted_text_embeddings(
 	} else {
 		let text_input = if embeddings.is_empty() {
 			// no external embeds
-			InputTensor::from_array(text_input.into_dyn())
+			text_input.into_dyn().into()
 		} else {
 			// pre-embed
-			InputTensor::from_array(embeddings.embed(text_input).into_dyn())
+			embeddings.embed(text_input).into_dyn().into()
 		};
 
-		let text_embeddings = text_encoder.run(vec![text_input])?;
+		let text_embeddings = text_encoder.run(&[text_input])?;
 		Ok(text_embeddings[0].try_extract()?.view().to_owned().into_dimensionality().unwrap())
 	}
 }

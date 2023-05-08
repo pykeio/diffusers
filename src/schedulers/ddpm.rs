@@ -14,8 +14,7 @@
 
 use anyhow::Context;
 use ndarray::{s, Array1, Array4, ArrayView4};
-use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
-use rand::Rng;
+use ndarray_rand::{rand::Rng, rand_distr::StandardNormal, RandomExt};
 
 use super::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
 use crate::{SchedulerOptimizedDefaults, SchedulerPredictionType};

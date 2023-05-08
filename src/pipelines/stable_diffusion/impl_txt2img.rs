@@ -1,11 +1,12 @@
 use image::DynamicImage;
 use ndarray::{concatenate, s, Array1, Array4, ArrayD, Axis, IxDyn};
-use ndarray_rand::rand_distr::StandardNormal;
-use ndarray_rand::RandomExt;
+use ndarray_rand::{
+	rand::{self, rngs::StdRng, Rng, SeedableRng},
+	rand_distr::StandardNormal,
+	RandomExt
+};
 use num_traits::ToPrimitive;
-use ort::tensor::{FromArray, InputTensor, OrtOwnedTensor};
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use ort::tensor::OrtOwnedTensor;
 
 use crate::{DiffusionScheduler, Prompt, StableDiffusionCallback, StableDiffusionPipeline};
 
@@ -275,11 +276,9 @@ impl StableDiffusionTxt2ImgOptions {
 			let timestep: ArrayD<f32> = Array1::from_iter([t.to_f32().unwrap()]).into_dyn();
 			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
 
-			let noise_pred = session.unet.run(vec![
-				InputTensor::from_array(latent_model_input),
-				InputTensor::from_array(timestep),
-				InputTensor::from_array(encoder_hidden_states),
-			])?;
+			let noise_pred = session
+				.unet
+				.run(&[latent_model_input.into(), timestep.into(), encoder_hidden_states.into()])?;
 			let noise_pred: OrtOwnedTensor<'_, f32, IxDyn> = noise_pred[0].try_extract()?;
 			let noise_pred: Array4<f32> = noise_pred.view().to_owned().into_dimensionality()?;
 

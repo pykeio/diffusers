@@ -16,10 +16,12 @@ use std::collections::VecDeque;
 
 use anyhow::Context;
 use ndarray::{Array1, Array4, ArrayView4};
-use rand::Rng;
+use ndarray_rand::rand::Rng;
 
-use super::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
-use crate::{SchedulerOptimizedDefaults, SchedulerPredictionType};
+use crate::{
+	schedulers::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput},
+	SchedulerOptimizedDefaults, SchedulerPredictionType
+};
 
 /// The algorithm type for the solver.
 ///

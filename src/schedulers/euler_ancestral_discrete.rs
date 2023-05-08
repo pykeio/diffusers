@@ -14,11 +14,13 @@
 
 use anyhow::{anyhow, Context};
 use ndarray::{concatenate, s, Array1, Array4, ArrayView4, Axis, Zip};
-use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
-use rand::Rng;
+use ndarray_rand::{rand::Rng, rand_distr::StandardNormal, RandomExt};
 
-use super::{BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
-use crate::{util::interpolation::LinearInterpolatorAccelerated, SchedulerOptimizedDefaults};
+use crate::{
+	schedulers::{BetaSchedule, DiffusionScheduler, SchedulerStepOutput},
+	util::interpolation::LinearInterpolatorAccelerated,
+	SchedulerOptimizedDefaults
+};
 
 /// Ancestral sampling with Euler method steps.
 ///
