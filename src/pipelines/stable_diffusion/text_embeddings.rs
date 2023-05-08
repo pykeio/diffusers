@@ -49,7 +49,7 @@ impl TextEmbeddings {
 		Ok(Self { tokenizer, text_hidden_size, tokens })
 	}
 
-	pub fn add_token_from_file<P: AsRef<PathBuf>>(&mut self, path: P) -> io::Result<AddedToken> {
+	pub fn add_token_from_file<P: AsRef<Path>>(&mut self, path: P) -> io::Result<AddedToken> {
 		let path = path.as_ref();
 		self.add_token_from_reader(BufReader::new(File::open(path)?))
 	}
