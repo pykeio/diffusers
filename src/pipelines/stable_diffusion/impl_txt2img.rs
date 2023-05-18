@@ -23,6 +23,9 @@ pub struct StableDiffusionTxt2ImgOptions {
 	/// output may not match the prompt. A higher guidance scale mean the model will match the prompt(s) more strictly,
 	/// but may introduce artifacts; `7.5` is a good balance.
 	pub guidance_scale: f32,
+	/// Set to `Some(multiplier)` to enable classifier-free guidance rescaling according to section 3.4 of https://arxiv.org/pdf/2305.08891.pdf.
+	/// `multiplier` should be a value between 0.5-0.75 for best results.
+	pub rescale_cfg: Option<f32>,
 	/// The number of steps to take to generate the image. More steps typically yields higher quality images.
 	pub steps: usize,
 	/// An optional seed to use when first generating noise. The same seed with the same scheduler, prompt, & guidance
@@ -50,6 +53,7 @@ impl Default for StableDiffusionTxt2ImgOptions {
 			height: 512,
 			width: 512,
 			guidance_scale: 7.5,
+			rescale_cfg: None,
 			steps: 25,
 			seed: None,
 			ensd: 0,
@@ -288,7 +292,14 @@ impl StableDiffusionTxt2ImgOptions {
 				let split_len = (noise_pred.shape()[0] / 2) as isize;
 				let noise_pred_uncond = noise_pred.slice(s![..split_len, .., .., ..]);
 				let noise_pred_text = noise_pred.slice(s![split_len.., .., .., ..]);
-				noise_pred = &noise_pred_uncond + self.guidance_scale * (&noise_pred_text - &noise_pred_uncond);
+				if let Some(multiplier) = self.rescale_cfg {
+					let x_cfg = &noise_pred_uncond + self.guidance_scale * (&noise_pred_text - &noise_pred_uncond);
+					let (ro_pos, ro_cfg) = (noise_pred_text.std(0.), x_cfg.std(0.));
+					let x_rescaled = &x_cfg * (ro_pos / ro_cfg);
+					noise_pred = multiplier * &x_rescaled + (1.0 - multiplier) * &x_cfg;
+				} else {
+					noise_pred = &noise_pred_uncond + self.guidance_scale * (&noise_pred_text - &noise_pred_uncond);
+				}
 			}
 
 			let scheduler_output = scheduler.step(noise_pred.view(), *t, latents.view(), &mut scheduler_rng);
