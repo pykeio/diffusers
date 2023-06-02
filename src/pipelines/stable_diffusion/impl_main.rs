@@ -388,7 +388,7 @@ impl StableDiffusionPipeline {
 		let mut images = Vec::new();
 		for approx_chunk in approx.axis_iter(Axis(0)) {
 			let approx_chunk = approx_chunk.insert_axis(Axis(0)).into_dimensionality()?.to_owned();
-			let image = self.to_image(approx_chunk.shape()[1] as _, approx_chunk.shape()[2] as _, &approx_chunk)?;
+			let image = self.to_image(approx_chunk.shape()[2] as _, approx_chunk.shape()[1] as _, &approx_chunk)?;
 			images.push(image);
 		}
 		Ok(images)
@@ -406,7 +406,7 @@ impl StableDiffusionPipeline {
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
 			let f_image = f_image.permuted_axes([0, 2, 3, 1]) / 2.0 + 0.5;
 
-			let image = self.to_image(f_image.shape()[1] as _, f_image.shape()[2] as _, &f_image)?;
+			let image = self.to_image(f_image.shape()[2] as _, f_image.shape()[1] as _, &f_image)?;
 			images.push(image);
 		}
 
