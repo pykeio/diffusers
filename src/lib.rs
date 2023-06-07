@@ -59,6 +59,14 @@ pub mod pipelines;
 pub mod schedulers;
 pub(crate) mod util;
 
+use ort::execution_providers::ArenaExtendStrategy as OrtArenaExtendStrategy;
+use ort::execution_providers::CPUExecutionProviderOptions;
+use ort::execution_providers::CUDAExecutionProviderCuDNNConvAlgoSearch;
+use ort::execution_providers::CUDAExecutionProviderOptions;
+use ort::execution_providers::CoreMLExecutionProviderOptions;
+use ort::execution_providers::DirectMLExecutionProviderOptions;
+use ort::execution_providers::OneDNNExecutionProviderOptions;
+use ort::execution_providers::ROCmExecutionProviderOptions;
 pub use ort::Environment as OrtEnvironment;
 use ort::ExecutionProvider;
 
@@ -86,6 +94,24 @@ impl From<ArenaExtendStrategy> for String {
 		match val {
 			ArenaExtendStrategy::PowerOfTwo => "kNextPowerOfTwo".to_string(),
 			ArenaExtendStrategy::SameAsRequested => "kSameAsRequested".to_string()
+		}
+	}
+}
+
+impl From<OrtArenaExtendStrategy> for ArenaExtendStrategy {
+	fn from(val: OrtArenaExtendStrategy) -> Self {
+		match val {
+			OrtArenaExtendStrategy::SameAsRequested => ArenaExtendStrategy::SameAsRequested,
+			OrtArenaExtendStrategy::NextPowerOfTwo => ArenaExtendStrategy::PowerOfTwo
+		}
+	}
+}
+
+impl From<ArenaExtendStrategy> for OrtArenaExtendStrategy {
+	fn from(val: ArenaExtendStrategy) -> Self {
+		match val {
+			ArenaExtendStrategy::SameAsRequested => OrtArenaExtendStrategy::SameAsRequested,
+			ArenaExtendStrategy::PowerOfTwo => OrtArenaExtendStrategy::NextPowerOfTwo
 		}
 	}
 }
@@ -120,6 +146,16 @@ impl From<CuDNNConvolutionAlgorithmSearch> for String {
 	}
 }
 
+impl From<CuDNNConvolutionAlgorithmSearch> for CUDAExecutionProviderCuDNNConvAlgoSearch {
+	fn from(val: CuDNNConvolutionAlgorithmSearch) -> Self {
+		match val {
+			CuDNNConvolutionAlgorithmSearch::Exhaustive => CUDAExecutionProviderCuDNNConvAlgoSearch::Exhaustive,
+			CuDNNConvolutionAlgorithmSearch::Heuristic => CUDAExecutionProviderCuDNNConvAlgoSearch::Heuristic,
+			CuDNNConvolutionAlgorithmSearch::Default => CUDAExecutionProviderCuDNNConvAlgoSearch::Default
+		}
+	}
+}
+
 /// Device options for the CUDA execution provider.
 ///
 /// For low-VRAM devices running Stable Diffusion v1, it's best to use a float16 model with the following parameters:
@@ -145,19 +181,21 @@ pub struct CUDADeviceOptions {
 	pub cudnn_conv_algorithm_search: Option<CuDNNConvolutionAlgorithmSearch>
 }
 
+impl From<CUDADeviceOptions> for CUDAExecutionProviderOptions {
+	fn from(val: CUDADeviceOptions) -> Self {
+		let defs = CUDAExecutionProviderOptions::default();
+		Self {
+			gpu_mem_limit: val.memory_limit.unwrap_or(defs.gpu_mem_limit),
+			arena_extend_strategy: val.arena_extend_strategy.map(|x| x.into()).unwrap_or(defs.arena_extend_strategy),
+			cudnn_conv_algo_search: val.cudnn_conv_algorithm_search.map(|x| x.into()).unwrap_or(defs.cudnn_conv_algo_search),
+			..Default::default()
+		}
+	}
+}
+
 impl From<CUDADeviceOptions> for ExecutionProvider {
 	fn from(val: CUDADeviceOptions) -> Self {
-		let mut ep = ExecutionProvider::cuda();
-		if let Some(arena_extend_strategy) = val.arena_extend_strategy {
-			ep = ep.with("arena_extend_strategy", arena_extend_strategy);
-		}
-		if let Some(memory_limit) = val.memory_limit {
-			ep = ep.with("gpu_mem_limit", memory_limit.to_string());
-		}
-		if let Some(cudnn_conv_algorithm_search) = val.cudnn_conv_algorithm_search {
-			ep = ep.with("cudnn_conv_algo_search", cudnn_conv_algorithm_search);
-		}
-		ep
+		ExecutionProvider::CUDA(val.into())
 	}
 }
 
@@ -176,14 +214,14 @@ pub enum DiffusionDevice {
 	/// provider parameters. These options can be fine tuned for inference on low-VRAM GPUs
 	/// (~3 GB free seems to be a good number for the Stable Diffusion v1 float16 UNet at 512x512 resolution); see
 	/// [`CUDADeviceOptions`] for an example.
-	CUDA(i32, Option<CUDADeviceOptions>),
+	CUDA(u32, Option<CUDADeviceOptions>),
 	/// Use NVIDIA TensorRT as a device. Requires an NVIDIA Kepler GPU or later.
 	TensorRT,
 	/// Use Windows DirectML as a device. Requires a DirectX 12 compatible GPU.
 	/// Recommended for AMD GPUs.
 	///
 	/// First value is the device ID (which can be set to 0 in most cases).
-	DirectML(i32),
+	DirectML(u32),
 	/// Use ROCm as a device for AMD GPUs.
 	ROCm(i32),
 	/// Use Intel oneDNN as a device.
@@ -198,18 +236,27 @@ pub enum DiffusionDevice {
 impl From<DiffusionDevice> for ExecutionProvider {
 	fn from(value: DiffusionDevice) -> Self {
 		match value {
-			DiffusionDevice::CPU => ExecutionProvider::cpu(),
+			DiffusionDevice::CPU => ExecutionProvider::CPU(CPUExecutionProviderOptions::default()),
 			DiffusionDevice::CUDA(device, options) => {
 				let options = options.unwrap_or_default();
-				let mut ep: ExecutionProvider = options.into();
-				ep = ep.with_device_id(device);
-				ep
+				let op = CUDAExecutionProviderOptions { device_id: device, ..options.into() };
+				ExecutionProvider::CUDA(op)
 			}
-			DiffusionDevice::TensorRT => ExecutionProvider::tensorrt(),
-			DiffusionDevice::DirectML(device) => ExecutionProvider::directml().with_device_id(device),
-			DiffusionDevice::ROCm(device) => ExecutionProvider::rocm().with_device_id(device),
-			DiffusionDevice::OneDNN => ExecutionProvider::onednn(),
-			DiffusionDevice::CoreML => ExecutionProvider::coreml(),
+			DiffusionDevice::TensorRT => ExecutionProvider::TensorRT(Default::default()),
+			DiffusionDevice::DirectML(device) => ExecutionProvider::DirectML(DirectMLExecutionProviderOptions { device_id: device }),
+			DiffusionDevice::ROCm(device) => ExecutionProvider::ROCm(ROCmExecutionProviderOptions {
+				device_id: device,
+				miopen_conv_exhaustive_search: 0,
+				gpu_mem_limit: 0,
+				arena_extend_strategy: 0,
+				do_copy_in_default_stream: 0,
+				has_user_compute_stream: 0,
+				user_compute_stream: std::ptr::null_mut(),
+				default_memory_arena_cfg: std::ptr::null_mut(),
+				tunable_op_enabled: 0
+			}),
+			DiffusionDevice::OneDNN => ExecutionProvider::OneDNN(OneDNNExecutionProviderOptions::default()),
+			DiffusionDevice::CoreML => ExecutionProvider::CoreML(CoreMLExecutionProviderOptions::default()),
 			DiffusionDevice::Custom(ep) => ep
 		}
 	}
