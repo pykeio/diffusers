@@ -37,7 +37,7 @@ pyke Diffusers is a modular [Rust](https://rust-lang.org/) library for pretraine
 ## Prerequisites
 You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 
-- If using CPU: recent (no earlier than Haswell/Zen) x86-64 CPU for best results. ARM64 supported is supported, but only recommended for use with Apple silicon hardware.
+- If using CPU: recent (no earlier than Haswell/Zen) x86-64 CPU for best results. ARM64 is supported, but only recommended for use with Apple silicon hardware.
 - If using CUDA: **CUDA >= v11.6**, **cuDNN v8.2.x** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements)</sup>
 - If using TensorRT: **CUDA >= v11.6**, **TensorRT v8.4** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html)</sup>
 - If using ROCm: **ROCm v5.2** <sup>[more info](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html)</sup>
