@@ -46,15 +46,12 @@ You'll need **[Rust](https://rustup.rs) v1.62.1+** to use pyke Diffusers.
 Only generic CPU, CUDA, and TensorRT have prebuilt binaries available (*for now*). Other execution providers will require you to manually build them; see the [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/) & [`ort` docs](https://github.com/pykeio/ort#execution-providers) for more info.
 
 ## Usage
-> **Note**:
-> The [pyke Discord server](https://discord.gg/BAkXJ6VjCz) occasionally hosts a pyke Diffusers interface for free as part of pyke Labs - try it via the `/imagine` command in [`#🪄｜labs-imagine`](https://discord.com/channels/1029216970027049072/1032658407905316864)
-
 Add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-pyke-diffusers = "0.2"
+pyke-diffusers = { git = "https://github.com/pykeio/diffusers", rev = "69c33b996416ca42535e4f524068081b93486770" } 
 # if you'd like to use CUDA:
-pyke-diffusers = { version = "0.2", features = [ "ort-cuda" ] }
+pyke-diffusers = { git = "https://github.com/pykeio/diffusers", rev = "69c33b996416ca42535e4f524068081b93486770", features = [ "ort-cuda" ] }
 ```
 
 The default features enable some commonly used schedulers and pipelines.
