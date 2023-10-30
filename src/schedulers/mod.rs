@@ -28,15 +28,9 @@
 //! exceptionally creative and can produce high quality results in as few as 20 steps.
 
 use ndarray::{Array1, Array4, ArrayBase, ArrayView1, ArrayView4};
+use ndarray_rand::rand::Rng;
 use num_traits::ToPrimitive;
-use rand::Rng;
 
-cfg_if::cfg_if! {
-	if #[cfg(feature = "scheduler-lms")] {
-		mod lms_discrete;
-		pub use self::lms_discrete::*;
-	}
-}
 cfg_if::cfg_if! {
 	if #[cfg(feature = "scheduler-euler")] {
 		mod euler_discrete;

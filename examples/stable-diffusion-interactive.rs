@@ -16,7 +16,7 @@ use std::{cell::RefCell, env};
 
 use kdam::{tqdm, BarExt};
 use pyke_diffusers::{
-	ArenaExtendStrategy, CUDADeviceOptions, DPMSolverMultistepScheduler, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment,
+	ArenaExtendStrategy, CUDAExecutionProviderOptions, DPMSolverMultistepScheduler, DiffusionDevice, DiffusionDeviceControl, OrtEnvironment,
 	SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 use requestty::Question;
@@ -39,15 +39,14 @@ fn main() -> anyhow::Result<()> {
 			devices: DiffusionDeviceControl {
 				unet: DiffusionDevice::CUDA(
 					0,
-					Some(CUDADeviceOptions {
-						memory_limit: Some(3000000000),
+					Some(CUDAExecutionProviderOptions {
+						gpu_mem_limit: Some(3500000000),
 						arena_extend_strategy: Some(ArenaExtendStrategy::SameAsRequested),
 						..Default::default()
 					})
 				),
 				..Default::default()
-			},
-			lpw: true
+			}
 		}
 	)?;
 
@@ -60,7 +59,7 @@ fn main() -> anyhow::Result<()> {
 				let pb = RefCell::new(tqdm!(total = 20, desc = "generating"));
 				StableDiffusionTxt2ImgOptions::default()
 					.with_steps(20)
-					.with_prompts(prompt, None)
+					.with_prompt(prompt)
 					.callback_progress(1, move |step, _| {
 						pb.borrow_mut().update_to(step);
 						true

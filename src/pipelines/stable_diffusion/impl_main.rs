@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::Path;
-use std::{fs, path::PathBuf, sync::Arc};
-
-use image::{DynamicImage, Rgb32FImage};
-use ndarray::{concatenate, Array2, Array4, ArrayD, ArrayView4, Axis, IxDyn};
-use ndarray_einsum_beta::einsum;
-use ort::{
-	tensor::{FromArray, InputTensor, OrtOwnedTensor},
-	Environment, OrtResult, Session, SessionBuilder
+use std::{
+	fs,
+	path::{Path, PathBuf},
+	sync::Arc
 };
 
-use super::{StableDiffusionOptions, StableDiffusionTxt2ImgOptions};
+use image::{DynamicImage, Rgb32FImage};
+use ndarray::{concatenate, Array2, Array4, ArrayD, ArrayView4, Axis};
+use ndarray_einsum_beta::einsum;
+use ort::{Environment, OrtOwnedTensor, OrtResult, Session, SessionBuilder};
+
 use crate::{
 	clip::CLIPStandardTokenizer,
 	config::{DiffusionFramework, DiffusionPipeline, StableDiffusionConfig, TokenizerConfig},
-	schedulers::DiffusionScheduler,
+	pipelines::StableDiffusionOptions,
+	text_embeddings::TextEmbeddings,
 	Prompt
 };
 
@@ -46,7 +46,7 @@ use crate::{
 /// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
 ///
 /// let imgs = StableDiffusionTxt2ImgOptions::default()
-/// 	.with_prompts("photo of a red fox", None)
+/// 	.with_prompt("photo of a red fox")
 /// 	.run(&pipeline, &mut scheduler)?;
 /// # Ok(())
 /// # }
@@ -58,7 +58,9 @@ pub struct StableDiffusionPipeline {
 	vae_encoder: Option<Session>,
 	vae_decoder: Session,
 	text_encoder: Session,
-	tokenizer: CLIPStandardTokenizer,
+	/// The [text embeddings](TextEmbeddings) used by the text encoder. This can be used to add textual inversion
+	/// weights.
+	pub text_embeddings: TextEmbeddings,
 	pub(crate) unet: Session,
 	safety_checker: Option<Session>,
 	#[allow(dead_code)]
@@ -66,6 +68,33 @@ pub struct StableDiffusionPipeline {
 }
 
 impl StableDiffusionPipeline {
+	/// A recommended 'safety concept' for original Stable Diffusion models. This prompt is designed to be used as a
+	/// negative prompt to prevent the model from generating potentially harmful content.
+	///
+	/// ```
+	/// # fn main() -> anyhow::Result<()> {
+	/// use pyke_diffusers::{
+	/// 	EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults, StableDiffusionOptions,
+	/// 	StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
+	/// };
+	///
+	/// let environment = OrtEnvironment::default().into_arc();
+	/// let mut scheduler = EulerDiscreteScheduler::stable_diffusion_v1_optimized_default()?;
+	/// let pipeline =
+	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
+	///
+	/// let imgs = StableDiffusionTxt2ImgOptions::default()
+	/// 	.with_prompt("photo of a red fox")
+	/// 	.with_negative_prompt(StableDiffusionPipeline::SAFETY_CONCEPT)
+	/// 	.run(&pipeline, &mut scheduler)?;
+	/// # Ok(())
+	/// # }
+	/// ```
+	///
+	/// This is not recommended for fine-tuned models, e.g. Waifu Diffusion or AnythingV3 (a negative prompt of simply
+	/// `(nsfw:1.05)` would probably work better for these models)
+	pub const SAFETY_CONCEPT: &'static str = "an image showing hate, harassment, violence, suffering, humiliation, harm, suicide, sexual, nudity, bodily fluids, blood, obscene gestures, illegal activity, drug use, theft, vandalism, weapons, child abuse, brutality, cruelty";
+
 	/// Creates a new Stable Diffusion pipeline, loading models from `root`.
 	///
 	/// ```
@@ -79,10 +108,13 @@ impl StableDiffusionPipeline {
 	/// ```
 	pub fn new(environment: &Arc<Environment>, root: impl Into<PathBuf>, options: StableDiffusionOptions) -> anyhow::Result<Self> {
 		let root: PathBuf = root.into();
-		let config: DiffusionPipeline = serde_json::from_reader(fs::read(root.join("diffusers.json"))?.as_slice())?;
+		let config: DiffusionPipeline = toml::from_str(&fs::read_to_string(root.join("pyke-diffusers.toml"))?)?;
 		let config: StableDiffusionConfig = match config {
 			DiffusionPipeline::StableDiffusion { framework, inner } => {
-				assert_eq!(framework, DiffusionFramework::Onnx);
+				match framework {
+					DiffusionFramework::Orte { .. } => (),
+					_ => panic!("bad framework")
+				}
 				inner
 			}
 			#[allow(unreachable_patterns)]
@@ -95,10 +127,11 @@ impl StableDiffusionPipeline {
 				model_max_length,
 				bos_token,
 				eos_token
-			} => CLIPStandardTokenizer::new(root.join(path.clone()), !options.lpw, *model_max_length, *bos_token, *eos_token)?,
+			} => CLIPStandardTokenizer::new(root.join(path.clone()), *model_max_length, *bos_token, *eos_token)?,
 			#[allow(unreachable_patterns)]
 			_ => anyhow::bail!("not a clip tokenizer")
 		};
+		let text_embeddings = TextEmbeddings::from_file(root.join(&config.text_encoder.text_embeddings.as_ref().unwrap().path), tokenizer)?;
 
 		let text_encoder = SessionBuilder::new(environment)?
 			.with_execution_providers([options.devices.text_encoder.clone().into()])?
@@ -140,7 +173,7 @@ impl StableDiffusionPipeline {
 			vae_encoder,
 			vae_decoder,
 			text_encoder,
-			tokenizer,
+			text_embeddings,
 			unet,
 			safety_checker,
 			feature_extractor: None
@@ -164,10 +197,13 @@ impl StableDiffusionPipeline {
 	/// ```
 	pub fn replace(mut self, new_root: impl Into<PathBuf>, options: Option<StableDiffusionOptions>) -> anyhow::Result<Self> {
 		let new_root: PathBuf = new_root.into();
-		let new_config: DiffusionPipeline = serde_json::from_reader(fs::read(new_root.join("diffusers.json"))?.as_slice())?;
+		let new_config: DiffusionPipeline = toml::from_str(&fs::read_to_string(new_root.join("pyke-diffusers.toml"))?)?;
 		let new_config: StableDiffusionConfig = match new_config {
 			DiffusionPipeline::StableDiffusion { framework, inner } => {
-				assert_eq!(framework, DiffusionFramework::Onnx);
+				match framework {
+					DiffusionFramework::Orte { .. } => (),
+					_ => panic!("bad framework")
+				}
 				inner
 			}
 			#[allow(unreachable_patterns)]
@@ -194,16 +230,17 @@ impl StableDiffusionPipeline {
 			self.replace_safety_checker(path)?
 		}
 
-		self.tokenizer = match &new_config.tokenizer {
+		let tokenizer = match &new_config.tokenizer {
 			TokenizerConfig::CLIPTokenizer {
 				path,
 				model_max_length,
 				bos_token,
 				eos_token
-			} => CLIPStandardTokenizer::new(new_root.join(path.clone()), !options.lpw, *model_max_length, *bos_token, *eos_token)?,
+			} => CLIPStandardTokenizer::new(new_root.join(path.clone()), *model_max_length, *bos_token, *eos_token)?,
 			#[allow(unreachable_patterns)]
 			_ => anyhow::bail!("not a clip tokenizer")
 		};
+		self.text_embeddings = TextEmbeddings::from_file(new_root.join(&new_config.text_encoder.text_embeddings.as_ref().unwrap().path), tokenizer)?;
 
 		self.options.clone_from(&options);
 		self.config = new_config;
@@ -224,7 +261,7 @@ impl StableDiffusionPipeline {
 	/// ```no_run
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{OrtEnvironment, StableDiffusionOptions, StableDiffusionPipeline};
-	/// let environment = OrtEnvironment::default().into_arc();
+	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let mut pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline.replace_unet("./anything/unet.onnx")?;
@@ -259,7 +296,7 @@ impl StableDiffusionPipeline {
 	/// ```no_run
 	/// # fn main() -> anyhow::Result<()> {
 	/// # use pyke_diffusers::{StableDiffusionOptions, StableDiffusionPipeline, OrtEnvironment};
-	/// let environment = OrtEnvironment::default().into_arc();
+	/// # let environment = OrtEnvironment::default().into_arc();
 	/// let mut pipeline =
 	/// 	StableDiffusionPipeline::new(&environment, "./stable-diffusion-v1-5/", StableDiffusionOptions::default())?;
 	/// pipeline.replace_vae("./anything/vae-decoder.onnx", Some("./anything/vae-encoder.onnx"))?;
@@ -312,9 +349,9 @@ impl StableDiffusionPipeline {
 			None
 		};
 
-		let text_embeddings = if self.options.lpw {
+		let text_embeddings = {
 			let embeddings = crate::pipelines::lpw::get_weighted_text_embeddings(
-				&self.tokenizer,
+				&self.text_embeddings,
 				&self.text_encoder,
 				prompt,
 				if do_classifier_free_guidance {
@@ -332,22 +369,6 @@ impl StableDiffusionPipeline {
 				}
 			}
 			text_embeddings.into_dyn()
-		} else {
-			let text_input_ids = self.tokenizer.encode_for_text_model(prompt.0)?.into_dyn();
-			let text_embeddings = self.text_encoder.run(vec![InputTensor::from_array(text_input_ids)])?;
-			let mut text_embeddings: ArrayD<f32> = text_embeddings[0].try_extract()?.view().to_owned();
-
-			if do_classifier_free_guidance {
-				let uncond_input = self
-					.tokenizer
-					.encode_for_text_model(negative_prompt.unwrap_or_else(|| Prompt::default_batched(batch_size)).0)?
-					.into_dyn();
-				let uncond_embeddings = self.text_encoder.run(vec![InputTensor::from_array(uncond_input)])?;
-				let uncond_embeddings: ArrayD<f32> = uncond_embeddings[0].try_extract()?.view().to_owned();
-				text_embeddings = concatenate![Axis(0), uncond_embeddings, text_embeddings];
-			}
-
-			text_embeddings
 		};
 
 		Ok(text_embeddings)
@@ -366,9 +387,8 @@ impl StableDiffusionPipeline {
 		let approx = einsum("blxy,lr->bxyr", &[&latents, &coefs]).expect("einsum error");
 		let mut images = Vec::new();
 		for approx_chunk in approx.axis_iter(Axis(0)) {
-			let approx_chunk = approx_chunk.insert_axis(Axis(0)).into_dimensionality()?;
-			let approx_chunk = approx_chunk.to_owned() * 1.2;
-			let image = self.to_image(approx_chunk.shape()[1] as _, approx_chunk.shape()[2] as _, &approx_chunk)?;
+			let approx_chunk = approx_chunk.insert_axis(Axis(0)).into_dimensionality()?.to_owned();
+			let image = self.to_image(approx_chunk.shape()[2] as _, approx_chunk.shape()[1] as _, &approx_chunk)?;
 			images.push(image);
 		}
 		Ok(images)
@@ -380,55 +400,15 @@ impl StableDiffusionPipeline {
 
 		let mut images = Vec::new();
 		for latent_chunk in latents.axis_iter(Axis(0)) {
-			let latent_chunk = latent_chunk.into_dyn().insert_axis(Axis(0));
-			let image = self.vae_decoder.run(vec![InputTensor::from_array(latent_chunk.to_owned())])?;
-			let image: OrtOwnedTensor<'_, f32, IxDyn> = image[0].try_extract()?;
+			let image = self.vae_decoder.run(ort::inputs![latent_chunk.insert_axis(Axis(0))]?)?;
+			let image: OrtOwnedTensor<f32> = image[0].extract_tensor()?;
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
-			let f_image = f_image.permuted_axes([0, 2, 3, 1]).map(|f| (f / 2.0 + 0.5).clamp(0.0, 1.0));
+			let f_image = f_image.permuted_axes([0, 2, 3, 1]) / 2.0 + 0.5;
 
-			let image = self.to_image(f_image.shape()[1] as _, f_image.shape()[2] as _, &f_image)?;
+			let image = self.to_image(f_image.shape()[2] as _, f_image.shape()[1] as _, &f_image)?;
 			images.push(image);
 		}
 
 		Ok(images)
-	}
-
-	/// > **Note**: this is deprecated, use `run()` in [`StableDiffusionTxt2ImgOptions`] instead.
-	///
-	/// Generates images from given text prompt(s). Returns a vector of [`image::DynamicImage`]s, using float32 buffers.
-	/// In most cases, you'll want to convert the images into RGB8 via `img.into_rgb8().`
-	///
-	/// `scheduler` must be a Stable Diffusion-compatible scheduler.
-	///
-	/// See [`StableDiffusionTxt2ImgOptions`] for additional configuration.
-	///
-	/// # Examples
-	///
-	/// Simple text-to-image:
-	/// ```
-	/// # fn main() -> anyhow::Result<()> {
-	/// # use pyke_diffusers::{StableDiffusionPipeline, EulerDiscreteScheduler, StableDiffusionOptions, StableDiffusionTxt2ImgOptions, OrtEnvironment};
-	/// # let environment = OrtEnvironment::default().into_arc();
-	/// # let mut scheduler = EulerDiscreteScheduler::default();
-	/// let pipeline =
-	/// 	StableDiffusionPipeline::new(&environment, "tests/stable-diffusion", StableDiffusionOptions::default())?;
-	///
-	/// let mut imgs = StableDiffusionTxt2ImgOptions::default()
-	/// 	.with_prompts("photo of a red fox", None)
-	/// 	.run(&pipeline, &mut scheduler)?;
-	/// imgs.remove(0).into_rgb8().save("result.png")?;
-	/// # Ok(())
-	/// # }
-	/// ```
-	#[deprecated(note = "use builder pattern with `StableDiffusionTxt2ImgOptions::run` instead")]
-	pub fn txt2img<S: DiffusionScheduler>(
-		&self,
-		prompt: impl Into<Prompt>,
-		scheduler: &mut S,
-		options: StableDiffusionTxt2ImgOptions
-	) -> anyhow::Result<Vec<DynamicImage>> {
-		let mut new_options = options;
-		new_options.positive_prompt = prompt.into();
-		new_options.run(self, scheduler)
 	}
 }

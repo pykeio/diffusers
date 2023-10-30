@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use pyke_diffusers::{
-	ArenaExtendStrategy, CUDADeviceOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment, SchedulerOptimizedDefaults,
-	StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
+	ArenaExtendStrategy, CUDAExecutionProviderOptions, DiffusionDevice, DiffusionDeviceControl, EulerDiscreteScheduler, OrtEnvironment,
+	SchedulerOptimizedDefaults, StableDiffusionOptions, StableDiffusionPipeline, StableDiffusionTxt2ImgOptions
 };
 
 fn main() -> anyhow::Result<()> {
@@ -27,21 +27,20 @@ fn main() -> anyhow::Result<()> {
 			devices: DiffusionDeviceControl {
 				unet: DiffusionDevice::CUDA(
 					0,
-					Some(CUDADeviceOptions {
-						memory_limit: Some(3000000000),
+					Some(CUDAExecutionProviderOptions {
+						gpu_mem_limit: Some(3500000000),
 						arena_extend_strategy: Some(ArenaExtendStrategy::SameAsRequested),
 						..Default::default()
 					})
 				),
 				..Default::default()
-			},
-			..Default::default()
+			}
 		}
 	)?;
 
 	let mut imgs = StableDiffusionTxt2ImgOptions::default()
+		.with_prompt("photo of a red fox")
 		.with_steps(20)
-		.with_prompts("photo of a red fox", None)
 		.run(&pipeline, &mut scheduler)?;
 
 	imgs.remove(0).into_rgb8().save("result.png")?;

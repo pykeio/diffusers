@@ -16,10 +16,12 @@ use std::collections::VecDeque;
 
 use anyhow::Context;
 use ndarray::{Array1, Array4, ArrayView4};
-use rand::Rng;
+use ndarray_rand::rand::Rng;
 
-use super::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
-use crate::{SchedulerOptimizedDefaults, SchedulerPredictionType};
+use crate::{
+	schedulers::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput},
+	SchedulerOptimizedDefaults, SchedulerPredictionType
+};
 
 /// The algorithm type for the solver.
 ///
@@ -39,8 +41,10 @@ pub enum DPMSolverAlgorithmType {
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[allow(missing_docs)]
 pub enum DPMSolverType {
+	/// Use the explicit midpoint method (RK2)
 	#[default]
 	Midpoint,
+	/// Use Heun's third-order method (RK3)
 	Heun
 }
 
@@ -181,7 +185,7 @@ impl DPMSolverMultistepScheduler {
 
 		let alpha_t = alphas_cumprod.map(|f| f.sqrt());
 		let sigma_t = alphas_cumprod.map(|f| (1.0 - f).sqrt());
-		let lambda_t = alpha_t.map(|f| f.log(std::f32::consts::E)) - sigma_t.map(|f| f.log(std::f32::consts::E));
+		let lambda_t = alpha_t.map(|f| f.ln()) - sigma_t.map(|f| f.ln());
 
 		let timesteps = Array1::linspace(num_train_timesteps as f32 - 1.0, 0.0, num_train_timesteps).map(|f| *f as usize);
 

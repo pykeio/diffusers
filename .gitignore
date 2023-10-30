@@ -8,6 +8,6 @@ __pycache__
 **/tokenizer.json
 **/diffusers.json
 Cargo.lock
-models/
+/models/
 !tests/**
 /result.png

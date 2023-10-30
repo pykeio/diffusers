@@ -15,16 +15,14 @@
 use std::num::ParseFloatError;
 
 use ndarray::{s, Array2, Array3, Axis, NewAxis};
-use ort::{
-	tensor::{FromArray, InputTensor},
-	OrtResult, Session
-};
+use once_cell::sync::Lazy;
+use ort::{OrtResult, Session, Value};
 use regex::Regex;
 
-use crate::{clip::CLIPStandardTokenizer, Prompt};
+use crate::{text_embeddings::TextEmbeddings, Prompt};
 
-lazy_static::lazy_static! {
-	static ref RE_ATTENTION: Regex = Regex::new(
+static RE_ATTENTION: Lazy<Regex> = Lazy::new(|| {
+	Regex::new(
 		r"(?x)
 	\\\(|
 	\\\)|
@@ -41,8 +39,8 @@ lazy_static::lazy_static! {
 	:
 	"
 	)
-	.unwrap();
-}
+	.unwrap()
+});
 
 type LpwTokens = Vec<Vec<u32>>;
 type LpwWeights = Vec<Vec<f32>>;
@@ -68,7 +66,7 @@ fn parse_prompt_attention(text: impl AsRef<str>) -> Result<Vec<(String, f32)>, P
 		} else if text == "[" {
 			square_brackets.push(rlen);
 		} else if weight.is_some() && !round_brackets.is_empty() {
-			let multiplier = weight.unwrap().parse::<f32>()?;
+			let multiplier = weight.unwrap().parse::<f32>()?.max(0.0);
 			for i in res.iter_mut().take(rlen).skip(round_brackets.pop().unwrap()) {
 				i.1 *= multiplier;
 			}
@@ -116,7 +114,7 @@ fn parse_prompt_attention(text: impl AsRef<str>) -> Result<Vec<(String, f32)>, P
 	Ok(res)
 }
 
-fn get_prompts_with_weights(tokenizer: &CLIPStandardTokenizer, prompts: Prompt, max_length: usize) -> anyhow::Result<(LpwTokens, LpwWeights)> {
+fn get_prompts_with_weights(embeddings: &TextEmbeddings, prompts: Prompt, max_length: usize) -> anyhow::Result<(LpwTokens, LpwWeights)> {
 	let mut tokens = vec![];
 	let mut weights = vec![];
 	for prompt in prompts.iter() {
@@ -124,7 +122,7 @@ fn get_prompts_with_weights(tokenizer: &CLIPStandardTokenizer, prompts: Prompt, 
 		let mut text_token = vec![];
 		let mut text_weight = vec![];
 		for (word, weight) in texts_and_weights {
-			let token = &tokenizer.encode(vec![word])?[0];
+			let token = &embeddings.tokenizer.encode(vec![word])?[0];
 			let token = &token[1..token.len() - 1];
 			text_token.extend_from_slice(token);
 			text_weight.extend_from_slice(&[weight].repeat(token.len()));
@@ -184,7 +182,13 @@ fn pad_tokens_and_weights(
 	(tokens, weights)
 }
 
-pub fn get_unweighted_text_embeddings(text_encoder: &Session, text_input: Array2<i32>, chunk_length: usize, no_boseos_middle: bool) -> OrtResult<Array3<f32>> {
+pub fn get_unweighted_text_embeddings(
+	#[cfg_attr(test, allow(unused))] embeddings: &TextEmbeddings,
+	text_encoder: &Session,
+	text_input: Array2<i32>,
+	chunk_length: usize,
+	no_boseos_middle: bool
+) -> OrtResult<Array3<f32>> {
 	let max_embeddings_multiples = (text_input.shape()[1] - 2) / (chunk_length - 2);
 	if max_embeddings_multiples > 1 {
 		let mut text_embeddings = Vec::new();
@@ -196,8 +200,16 @@ pub fn get_unweighted_text_embeddings(text_encoder: &Session, text_input: Array2
 			text_input_chunk.slice_mut(s![.., 0]).assign(&text_input.slice(s![0, 0]));
 			text_input_chunk.slice_mut(s![.., -1]).assign(&text_input.slice(s![0, -1]));
 
-			let chunk_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input_chunk.into_dyn())])?;
-			let chunk_embeddings: Array3<f32> = chunk_embeddings[0].try_extract()?.view().to_owned().into_dimensionality().unwrap();
+			let text_input_chunk = if embeddings.is_empty() {
+				// no external embeds
+				Value::from_array(text_input_chunk)
+			} else {
+				// pre-embed
+				Value::from_array(embeddings.embed(text_input_chunk))
+			}?;
+
+			let chunk_embeddings = text_encoder.run(ort::inputs![text_input_chunk]?)?;
+			let chunk_embeddings: Array3<f32> = chunk_embeddings[0].extract_tensor()?.view().to_owned().into_dimensionality().unwrap();
 
 			#[allow(clippy::reversed_empty_ranges)]
 			let view = if no_boseos_middle {
@@ -221,24 +233,32 @@ pub fn get_unweighted_text_embeddings(text_encoder: &Session, text_input: Array2
 		}
 		Ok(x1)
 	} else {
-		let text_embeddings = text_encoder.run(vec![InputTensor::from_array(text_input.into_dyn())])?;
-		Ok(text_embeddings[0].try_extract()?.view().to_owned().into_dimensionality().unwrap())
+		let text_input = if embeddings.is_empty() {
+			// no external embeds
+			Value::from_array(text_input)
+		} else {
+			// pre-embed
+			Value::from_array(embeddings.embed(text_input))
+		}?;
+
+		let text_embeddings = text_encoder.run(ort::inputs![text_input]?)?;
+		Ok(text_embeddings[0].extract_tensor()?.view().to_owned().into_dimensionality().unwrap())
 	}
 }
 
 pub fn get_weighted_text_embeddings(
-	tokenizer: &CLIPStandardTokenizer,
+	embeddings: &TextEmbeddings,
 	text_encoder: &Session,
 	prompt: Prompt,
 	neg_prompt: Option<Prompt>,
 	max_embeddings_multiples: usize,
 	no_boseos_middle: bool
 ) -> anyhow::Result<(Array3<f32>, Option<Array3<f32>>)> {
-	let max_length = (tokenizer.len() - 2) * max_embeddings_multiples + 2;
+	let max_length = (embeddings.tokenizer.len() - 2) * max_embeddings_multiples + 2;
 
-	let (prompt_tokens, prompt_weights) = get_prompts_with_weights(tokenizer, prompt, max_length - 2)?;
+	let (prompt_tokens, prompt_weights) = get_prompts_with_weights(embeddings, prompt, max_length - 2)?;
 	let uncond_ptt = if let Some(neg_prompt) = neg_prompt {
-		Some(get_prompts_with_weights(tokenizer, neg_prompt, max_length - 2)?)
+		Some(get_prompts_with_weights(embeddings, neg_prompt, max_length - 2)?)
 	} else {
 		None
 	};
@@ -248,23 +268,25 @@ pub fn get_weighted_text_embeddings(
 		max_length = max_length.max(uncond_tokens.iter().map(|t| t.len()).max().unwrap_or(0));
 	}
 
-	let max_embeddings_multiples = max_embeddings_multiples.min((max_length - 1) / (tokenizer.len() - 2) + 1);
+	let max_embeddings_multiples = max_embeddings_multiples.min((max_length - 1) / (embeddings.tokenizer.len() - 2) + 1);
 	let max_embeddings_multiples = 1.max(max_embeddings_multiples);
-	let max_length = (tokenizer.len() - 2) * max_embeddings_multiples + 2;
+	let max_length = (embeddings.tokenizer.len() - 2) * max_embeddings_multiples + 2;
 
-	let bos_id = tokenizer.bos();
-	let eos_id = tokenizer.eos();
-	let (prompt_tokens, prompt_weights) = pad_tokens_and_weights(prompt_tokens, prompt_weights, max_length, bos_id, eos_id, no_boseos_middle, tokenizer.len());
+	let bos_id = embeddings.tokenizer.bos();
+	let eos_id = embeddings.tokenizer.eos();
+	let (prompt_tokens, prompt_weights) =
+		pad_tokens_and_weights(prompt_tokens, prompt_weights, max_length, bos_id, eos_id, no_boseos_middle, embeddings.tokenizer.len());
 	let uncond_padded = if let Some((uncond_tokens, uncond_weights)) = uncond_ptt {
-		Some(pad_tokens_and_weights(uncond_tokens, uncond_weights, max_length, bos_id, eos_id, no_boseos_middle, tokenizer.len()))
+		Some(pad_tokens_and_weights(uncond_tokens, uncond_weights, max_length, bos_id, eos_id, no_boseos_middle, embeddings.tokenizer.len()))
 	} else {
 		None
 	};
 
 	let text_embeddings = get_unweighted_text_embeddings(
+		embeddings,
 		text_encoder,
 		Array2::from_shape_vec((prompt_tokens.len(), prompt_tokens[0].len()), prompt_tokens.concat())?.map(|f| *f as i32),
-		tokenizer.len(),
+		embeddings.tokenizer.len(),
 		no_boseos_middle
 	)?;
 
@@ -274,13 +296,14 @@ pub fn get_weighted_text_embeddings(
 			.slice(s![.., .., NewAxis])
 			.to_owned();
 	let current_mean = text_embeddings.mean_axis(Axis(2)).unwrap().mean_axis(Axis(1)).unwrap();
-	let text_embeddings = text_embeddings * (previous_mean / current_mean);
+	let text_embeddings = text_embeddings * (previous_mean / current_mean).insert_axis(Axis(1)).insert_axis(Axis(2));
 
 	let uncond_embeddings = if let Some((uncond_tokens, uncond_weights)) = uncond_padded {
 		let uncond_embeddings = get_unweighted_text_embeddings(
+			embeddings,
 			text_encoder,
 			Array2::from_shape_vec((uncond_tokens.len(), uncond_tokens[0].len()), uncond_tokens.concat())?.map(|f| *f as i32),
-			tokenizer.len(),
+			embeddings.tokenizer.len(),
 			no_boseos_middle
 		)?;
 		let previous_mean = uncond_embeddings.mean_axis(Axis(2)).unwrap().mean_axis(Axis(1)).unwrap();
@@ -289,7 +312,7 @@ pub fn get_weighted_text_embeddings(
 				.slice(s![.., .., NewAxis])
 				.to_owned();
 		let current_mean = uncond_embeddings.mean_axis(Axis(2)).unwrap().mean_axis(Axis(1)).unwrap();
-		Some(uncond_embeddings * (previous_mean / current_mean))
+		Some(uncond_embeddings * (previous_mean / current_mean).insert_axis(Axis(1)).insert_axis(Axis(2)))
 	} else {
 		None
 	};

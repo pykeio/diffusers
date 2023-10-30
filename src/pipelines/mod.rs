@@ -23,13 +23,6 @@ cfg_if::cfg_if! {
 	}
 }
 
-cfg_if::cfg_if! {
-	if #[cfg(feature = "safe-stable-diffusion")] {
-		mod safe_stable_diffusion;
-		pub use self::safe_stable_diffusion::*;
-	}
-}
-
 /// Text prompt(s) used as input in diffusion pipelines.
 ///
 /// Can be converted from one or more prompts:
@@ -46,6 +39,13 @@ impl Prompt {
 	/// Creates a default prompt with a given batch size.
 	pub fn default_batched(batch_size: usize) -> Prompt {
 		Prompt(vec![String::new(); batch_size])
+	}
+
+	/// Converts this prompt into a batched prompt with `batch_size` batches.
+	pub fn batched(mut self, batch_size: usize) -> Prompt {
+		assert!(self.0.len() == 1);
+		self.0 = vec![self.0[0].clone(); batch_size];
+		self
 	}
 }
 
@@ -96,6 +96,12 @@ impl<'s> From<Cow<'s, str>> for Prompt {
 impl From<String> for Prompt {
 	fn from(value: String) -> Self {
 		Self(vec![value])
+	}
+}
+
+impl<'s> From<&'s String> for Prompt {
+	fn from(value: &'s String) -> Self {
+		Self(vec![value.to_string()])
 	}
 }
 

@@ -14,11 +14,13 @@
 
 use anyhow::{anyhow, Context};
 use ndarray::{concatenate, s, Array1, Array4, ArrayView4, Axis, Zip};
-use ndarray_rand::{rand_distr::StandardNormal, RandomExt};
-use rand::Rng;
+use ndarray_rand::{rand::Rng, rand_distr::StandardNormal, RandomExt};
 
-use super::{BetaSchedule, DiffusionScheduler, SchedulerStepOutput};
-use crate::{util::interpolation::LinearInterpolatorAccelerated, SchedulerOptimizedDefaults};
+use crate::{
+	schedulers::{betas_for_alpha_bar, BetaSchedule, DiffusionScheduler, SchedulerStepOutput},
+	util::interpolation::LinearInterpolatorAccelerated,
+	SchedulerOptimizedDefaults
+};
 
 /// Euler scheduler (Algorithm 2) from [Karras et al. (2022)](https://arxiv.org/abs/2206.00364).
 ///
@@ -77,6 +79,7 @@ impl EulerDiscreteScheduler {
 				betas.par_map_inplace(|f| *f = f.powi(2));
 				betas
 			}
+			BetaSchedule::SquaredcosCapV2 => betas_for_alpha_bar(num_train_timesteps, 0.999),
 			_ => anyhow::bail!("{beta_schedule:?} not implemented for EulerDiscreteScheduler")
 		};
 
