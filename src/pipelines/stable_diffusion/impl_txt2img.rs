@@ -1,12 +1,12 @@
 use image::DynamicImage;
-use ndarray::{concatenate, s, Array1, Array4, ArrayD, Axis, IxDyn};
+use ndarray::{concatenate, s, Array1, Array4, Axis, CowArray, IxDyn};
 use ndarray_rand::{
 	rand::{self, rngs::StdRng, Rng, SeedableRng},
 	rand_distr::StandardNormal,
 	RandomExt
 };
 use num_traits::ToPrimitive;
-use ort::tensor::OrtOwnedTensor;
+use ort::OrtOwnedTensor;
 
 use crate::{DiffusionScheduler, Prompt, StableDiffusionCallback, StableDiffusionPipeline};
 
@@ -276,14 +276,12 @@ impl StableDiffusionTxt2ImgOptions {
 				latents.clone()
 			};
 			let latent_model_input = scheduler.scale_model_input(latent_model_input.view(), *t);
-			let latent_model_input: ArrayD<f32> = latent_model_input.into_dyn();
-			let timestep: ArrayD<f32> = Array1::from_iter([t.to_f32().unwrap()]).into_dyn();
-			let encoder_hidden_states: ArrayD<f32> = text_embeddings.clone().into_dyn();
+			let latent_model_input: CowArray<f32, IxDyn> = CowArray::from(latent_model_input.into_dyn());
+			let timestep: CowArray<f32, IxDyn> = CowArray::from(Array1::from_iter([t.to_f32().unwrap()]).into_dyn());
+			let encoder_hidden_states: CowArray<f32, IxDyn> = CowArray::from(text_embeddings.clone().into_dyn());
 
-			let noise_pred = session
-				.unet
-				.run(&[latent_model_input.into(), timestep.into(), encoder_hidden_states.into()])?;
-			let noise_pred: OrtOwnedTensor<'_, f32, IxDyn> = noise_pred[0].try_extract()?;
+			let noise_pred = session.unet.run(ort::inputs![&latent_model_input, &timestep, &encoder_hidden_states]?)?;
+			let noise_pred: OrtOwnedTensor<f32> = noise_pred[0].extract_tensor()?;
 			let noise_pred: Array4<f32> = noise_pred.view().to_owned().into_dimensionality()?;
 
 			let mut noise_pred: Array4<f32> = noise_pred.clone();

@@ -2,7 +2,7 @@ use std::{
 	collections::HashMap,
 	fs::File,
 	io::{self, BufRead, BufReader},
-	path::{Path, PathBuf}
+	path::Path
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};

@@ -19,9 +19,9 @@ use std::{
 };
 
 use image::{DynamicImage, Rgb32FImage};
-use ndarray::{concatenate, Array2, Array4, ArrayD, ArrayView4, Axis, IxDyn};
+use ndarray::{concatenate, Array2, Array4, ArrayD, ArrayView4, Axis};
 use ndarray_einsum_beta::einsum;
-use ort::{tensor::OrtOwnedTensor, Environment, OrtResult, Session, SessionBuilder};
+use ort::{Environment, OrtOwnedTensor, OrtResult, Session, SessionBuilder};
 
 use crate::{
 	clip::CLIPStandardTokenizer,
@@ -93,7 +93,7 @@ impl StableDiffusionPipeline {
 	///
 	/// This is not recommended for fine-tuned models, e.g. Waifu Diffusion or AnythingV3 (a negative prompt of simply
 	/// `(nsfw:1.05)` would probably work better for these models)
-	pub const SAFETY_CONCEPT: &str = "an image showing hate, harassment, violence, suffering, humiliation, harm, suicide, sexual, nudity, bodily fluids, blood, obscene gestures, illegal activity, drug use, theft, vandalism, weapons, child abuse, brutality, cruelty";
+	pub const SAFETY_CONCEPT: &'static str = "an image showing hate, harassment, violence, suffering, humiliation, harm, suicide, sexual, nudity, bodily fluids, blood, obscene gestures, illegal activity, drug use, theft, vandalism, weapons, child abuse, brutality, cruelty";
 
 	/// Creates a new Stable Diffusion pipeline, loading models from `root`.
 	///
@@ -400,9 +400,8 @@ impl StableDiffusionPipeline {
 
 		let mut images = Vec::new();
 		for latent_chunk in latents.axis_iter(Axis(0)) {
-			let latent_chunk = latent_chunk.into_dyn().insert_axis(Axis(0));
-			let image = self.vae_decoder.run(&[latent_chunk.to_owned().into()])?;
-			let image: OrtOwnedTensor<'_, f32, IxDyn> = image[0].try_extract()?;
+			let image = self.vae_decoder.run(ort::inputs![latent_chunk.insert_axis(Axis(0))]?)?;
+			let image: OrtOwnedTensor<f32> = image[0].extract_tensor()?;
 			let f_image: Array4<f32> = image.view().to_owned().into_dimensionality()?;
 			let f_image = f_image.permuted_axes([0, 2, 3, 1]) / 2.0 + 0.5;
 

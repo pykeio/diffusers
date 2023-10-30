@@ -30,7 +30,7 @@ regex = "1.7"
 once_cell = "1.17"
 image = { version = "0.24", default-features = false }
 cfg-if = "1.0"
-ort = { git = "https://github.com/pykeio/ort", rev = "5d064ceb675104c6f7e72770b3e48d43fdc450b2", default-features = false }
+ort = { git = "https://github.com/pykeio/ort", rev = "965712dbf4d1cce4deff5f1655144e9e7621e4ea", default-features = false }
 ndarray_einsum_beta = "0.7"
 byteorder = "1"
 
@@ -42,7 +42,7 @@ tokenizers = { version = "0.13", default-features = false, features = [ "onig" ]
 [dev-dependencies]
 tokio = { version = "1.0", features = [ "full" ] }
 image = { version = "0.24", default-features = false, features = [ "png" ] }
-ort = { git = "https://github.com/pykeio/ort", rev = "5d064ceb675104c6f7e72770b3e48d43fdc450b2", default-features = false, features = [ "download-binaries" ] }
+ort = { git = "https://github.com/pykeio/ort", rev = "965712dbf4d1cce4deff5f1655144e9e7621e4ea", default-features = false, features = [ "download-binaries" ] }
 tracing-subscriber = "0.3"
 
 requestty = "0.5"
